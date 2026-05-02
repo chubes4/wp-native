@@ -10,6 +10,7 @@ pnpm-debug.log*
 dist/
 build/
 *.tsbuildinfo
+.tsbuildinfo
 
 # Expo / React Native
 .expo/

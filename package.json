@@ -11,5 +11,13 @@
   "workspaces": [
     "packages/*",
     "examples/*"
-  ]
+  ],
+  "scripts": {
+    "typecheck": "tsc -b",
+    "typecheck:watch": "tsc -b --watch",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
 }

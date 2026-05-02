@@ -3,9 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "description": "React Native app shell for wp-native. Drawer, auth, theme, browser handoff, ability-driven screens.",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "source": "src/index.ts",
   "license": "GPL-2.0-or-later",
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
   "peerDependencies": {
     "react": ">=19",
     "react-native": ">=0.80",

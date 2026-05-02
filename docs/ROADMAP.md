@@ -99,6 +99,13 @@ That's the whole consumer surface. **Data, not code.** EC-specifics are ability 
 - ❌ wp-admin inside the app
 - ❌ Per-site typed API client wrappers
 - ❌ Locking consumers into a specific backend / hosting
+- ❌ JavaScript without types — **TypeScript is mandatory across the entire codebase**
+
+## Language: TypeScript, strict, no exceptions
+
+Every package and every consumer code path is TypeScript with strict mode enabled. The repo's `tsconfig.base.json` turns on the full strict family — `noImplicitAny`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `useUnknownInCatchVariables`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUnusedLocals`, `noUnusedParameters`. No `.js` source files in `packages/*/src`.
+
+Rationale: a framework whose entire job is to model a self-describing API surface (abilities) and feed it into typed React Native components only earns its keep if the type system is enforced end-to-end. JS-with-JSDoc is not an acceptable shortcut.
 
 ## v0.1 scope
 
