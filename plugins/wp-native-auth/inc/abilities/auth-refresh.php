@@ -1,6 +1,6 @@
 <?php
 /**
- * Ability: wp-native/auth.refresh
+ * Ability: wp-native/auth-refresh
  *
  * Validate the supplied refresh token, rotate it (issue a new one,
  * invalidate the prior), and return a fresh access token.
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_register_refresh_ability' ) ) {
 	/**
-	 * Register the wp-native/auth.refresh ability.
+	 * Register the wp-native/auth-refresh ability.
 	 *
 	 * @return void
 	 */
@@ -26,7 +26,7 @@ if ( ! function_exists( 'wp_native_auth_register_refresh_ability' ) ) {
 		}
 
 		wp_register_ability(
-			'wp-native/auth.refresh',
+			'wp-native/auth-refresh',
 			array(
 				'label'               => __( 'Refresh access token using a refresh token', 'wp-native-auth' ),
 				'description'         => __( 'Validate the supplied refresh token, rotate it (issue a new one, invalidate the prior), and return a fresh access token. Sliding 30-day expiry.', 'wp-native-auth' ),
@@ -73,7 +73,7 @@ if ( ! function_exists( 'wp_native_auth_register_refresh_ability' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_execute_refresh_ability' ) ) {
 	/**
-	 * Execute callback for wp-native/auth.refresh.
+	 * Execute callback for wp-native/auth-refresh.
 	 *
 	 * Delegates to the token service shipped in M4.2.
 	 *

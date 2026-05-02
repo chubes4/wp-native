@@ -42,8 +42,17 @@ define( 'WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS', 5 );
 // DB layer (refresh tokens table installer).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/db.php';
 
+// Token primitives (hashing, access-token generation/validation, helpers).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/tokens.php';
+
+// Token service (login, refresh, revoke, sessions, user payload).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/service.php';
+
 // Bearer token request filter (resolves Authorization header → current user).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/bearer-auth.php';
+
+// Ability registrations (the public surface for wp-native-client).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/abilities.php';
 
 /**
  * Activation: install the network-wide refresh tokens table.

@@ -89,7 +89,7 @@ Error codes use snake_case. HTTP status codes match the semantic intent (401 for
 
 ## Abilities
 
-### `wp-native/auth.login`
+### `wp-native/auth-login`
 
 **Category:** `wp-native-auth`
 **Label:** Log in with username or email + password
@@ -164,7 +164,7 @@ Error codes use snake_case. HTTP status codes match the semantic intent (401 for
 
 ---
 
-### `wp-native/auth.refresh`
+### `wp-native/auth-refresh`
 
 **Category:** `wp-native-auth`
 **Label:** Refresh access token using a refresh token
@@ -186,7 +186,7 @@ Error codes use snake_case. HTTP status codes match the semantic intent (401 for
 
 #### Output schema
 
-Same as `wp-native/auth.login` output (TokenPair + User).
+Same as `wp-native/auth-login` output (TokenPair + User).
 
 #### Error codes
 
@@ -200,7 +200,7 @@ Same as `wp-native/auth.login` output (TokenPair + User).
 
 ---
 
-### `wp-native/auth.logout`
+### `wp-native/auth-logout`
 
 **Category:** `wp-native-auth`
 **Label:** Revoke the refresh token for a device
@@ -243,7 +243,7 @@ Authenticated via Bearer token. The `user_id` is derived from the bearer token, 
 
 ---
 
-### `wp-native/auth.me`
+### `wp-native/auth-me`
 
 **Category:** `wp-native-auth`
 **Label:** Get the currently authenticated user
@@ -282,7 +282,7 @@ Authenticated via Bearer token. The `user_id` is derived from the bearer token, 
 
 ---
 
-### `wp-native/auth.sessions`
+### `wp-native/auth-sessions`
 
 **Category:** `wp-native-auth`
 **Label:** List active device sessions for the current user
@@ -329,7 +329,7 @@ Authenticated via Bearer token. The `user_id` is derived from the bearer token, 
 
 ---
 
-### `wp-native/auth.revoke-session`
+### `wp-native/auth-revoke-session`
 
 **Category:** `wp-native-auth`
 **Label:** Revoke a specific device session

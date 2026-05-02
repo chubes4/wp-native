@@ -34,7 +34,7 @@ export interface WPNativeBrowserHandoffConfig {
 
   /**
    * Ability name used to mint a handoff token.
-   * @default 'wp-native/auth.browser-handoff'
+   * @default 'wp-native/auth-browser-handoff'
    */
   handoffAbility?: string | undefined;
 }
@@ -59,7 +59,7 @@ export interface BrowserHandoffHandler {
 
 // ─── Internals ───────────────────────────────────────────────────────────────
 
-const DEFAULT_HANDOFF_ABILITY = 'wp-native/auth.browser-handoff';
+const DEFAULT_HANDOFF_ABILITY = 'wp-native/auth-browser-handoff';
 
 /**
  * Match a hostname against a pattern that may use a leading wildcard.

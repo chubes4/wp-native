@@ -1,6 +1,6 @@
 <?php
 /**
- * Ability: wp-native/auth.sessions
+ * Ability: wp-native/auth-sessions
  *
  * Returns one row per device that has a non-revoked, non-expired refresh
  * token. Useful for "manage your devices" UI.
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_register_sessions_ability' ) ) {
 	/**
-	 * Register the wp-native/auth.sessions ability.
+	 * Register the wp-native/auth-sessions ability.
 	 *
 	 * @return void
 	 */
@@ -26,7 +26,7 @@ if ( ! function_exists( 'wp_native_auth_register_sessions_ability' ) ) {
 		}
 
 		wp_register_ability(
-			'wp-native/auth.sessions',
+			'wp-native/auth-sessions',
 			array(
 				'label'               => __( 'List active device sessions for the current user', 'wp-native-auth' ),
 				'description'         => __( 'Returns one row per device that has a non-revoked, non-expired refresh token. Useful for "manage your devices" UI.', 'wp-native-auth' ),
@@ -79,7 +79,7 @@ if ( ! function_exists( 'wp_native_auth_register_sessions_ability' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_execute_sessions_ability' ) ) {
 	/**
-	 * Execute callback for wp-native/auth.sessions.
+	 * Execute callback for wp-native/auth-sessions.
 	 *
 	 * Delegates to the token service shipped in M4.2.
 	 *
