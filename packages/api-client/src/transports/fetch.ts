@@ -7,13 +7,13 @@
  * - Node 18+ (built-in fetch)
  *
  * Auth is handled via a configurable header function.
- * The mobile app passes Bearer tokens, Node scripts pass Basic auth, etc.
+ * Mobile apps pass Bearer tokens, Node scripts pass Basic auth, etc.
  */
 
 import type { Transport, TransportRequest } from './types';
 
 export interface FetchTransportConfig {
-  /** Base URL for the REST API, e.g. "https://wordpress.test/wp-json" */
+  /** Base URL for the REST API, e.g. "https://example.com/wp-json" */
   baseUrl: string;
 
   /**
@@ -56,16 +56,14 @@ export class FetchTransport implements Transport {
       ...req.headers,
     };
 
-    const body: BodyInit | null = req.body
-      ? isFormData
-        ? req.body as BodyInit
-        : JSON.stringify(req.body)
-      : null;
-
     const response = await fetch(url, {
       method: req.method,
       headers,
-      body,
+      body: req.body
+        ? isFormData
+          ? (req.body as BodyInit)
+          : JSON.stringify(req.body)
+        : null,
     });
 
     if (response.status === 401) {
@@ -81,9 +79,9 @@ export class FetchTransport implements Transport {
         // Response wasn't JSON
       }
       throw new ApiError(
-        errorData.message ?? `Request failed with status ${response.status}`,
-        errorData.code ?? 'request_failed',
-        response.status
+        errorData.message || `Request failed with status ${response.status}`,
+        errorData.code || 'request_failed',
+        response.status,
       );
     }
 
@@ -92,7 +90,7 @@ export class FetchTransport implements Transport {
       return undefined as T;
     }
 
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 }
 
