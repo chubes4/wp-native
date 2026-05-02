@@ -6,6 +6,16 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "source": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./wordpress": {
+      "types": "./dist/wordpress.d.ts",
+      "default": "./dist/wordpress.js"
+    }
+  },
   "license": "GPL-2.0-or-later",
   "scripts": {
     "typecheck": "tsc -b"
