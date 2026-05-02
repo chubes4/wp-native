@@ -1,8 +1,19 @@
 /**
  * wp-native-shell — React Native app shell for wp-native.
  *
- * Implementation lands in M5–M6. This file currently exports a placeholder
- * so the TypeScript project graph compiles cleanly across the monorepo.
+ * M5.2: Theme — ThemeProvider, useTheme, ThemeTokens, defaultThemeTokens.
+ * Other slices (auth, navigation) land in parallel PRs.
  */
 
 export const PACKAGE_NAME = 'wp-native-shell' as const;
+
+// ─── Theme (M5.2) ───────────────────────────────────────────────────────────
+
+export {
+	ThemeProvider,
+	useTheme,
+	defaultThemeTokens,
+	deepMergeTokens,
+} from './theme';
+
+export type { ThemeTokens, ThemeProviderProps } from './theme';
