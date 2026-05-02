@@ -12,19 +12,21 @@ Not a WebView wrapper. Not a SaaS. Not a no-code builder. A **framework** for Wo
 
 ## Architecture
 
+`wp-native` is built on the [WordPress Abilities API](https://make.wordpress.org/core/) (core in WP 6.9+). The Abilities API is the universal, self-describing tool surface for any WordPress site. Mobile apps are just another consumer of it.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Consumer App (React Native)             │
-│                                                            │
-│   wp-native.config.ts                                      │
-│   <WPNativeApp config={...}/>                              │
-└────────────────────┬───────────────────────────────────────┘
+│              Consumer App (React Native)                    │
+│                                                             │
+│   wp-native.config.ts        ← maps UI slots to abilities   │
+│   <WPNativeApp config={...}/>                               │
+└────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  packages/shell                             │
 │   App shell, drawer, auth provider, theme provider,         │
-│   browser handoff, generic post screens                     │
+│   browser handoff, generic ability-driven screens           │
 └─────┬───────────────────────────────────────┬───────────────┘
       │                                       │
       ▼                                       ▼
@@ -32,12 +34,17 @@ Not a WebView wrapper. Not a SaaS. Not a no-code builder. A **framework** for Wo
 │ packages/        │               │   plugins/               │
 │ api-client       │ ◄── talks to ─►   wp-native-auth         │
 │                  │   WordPress     │   (WP plugin)          │
-│ Generic typed    │                 │                        │
-│ WP REST client   │                 │   Token auth, device   │
-│ + auth transport │                 │   sessions, refresh    │
-│                  │                 │   rotation             │
+│ Universal client │                 │                        │
+│   • discovery    │                 │   Token auth, device   │
+│   • execute()    │                 │   sessions, refresh    │
+│   • auth         │                 │   rotation             │
+│                  │                 │                        │
+│ NO per-site      │                 │                        │
+│ wrappers         │                 │                        │
 └──────────────────┘                 └──────────────────────────┘
 ```
+
+The client doesn't know what abilities exist on a given WordPress site — **it asks.** Adding a new endpoint on the server makes it instantly available in the app, zero client changes.
 
 ## Repo layout
 
@@ -45,12 +52,12 @@ Not a WebView wrapper. Not a SaaS. Not a no-code builder. A **framework** for Wo
 wp-native/
 ├── packages/
 │   ├── shell/          React Native app shell
-│   ├── api-client/     Generic WordPress REST client
+│   ├── api-client/     Universal client (abilities discovery + execution)
 │   └── theme/          Design token primitives
 ├── plugins/
 │   └── wp-native-auth/ WordPress plugin (token auth)
 ├── examples/           Reference consumer apps
-└── docs/               Documentation
+└── docs/               Documentation, including ROADMAP.md
 ```
 
 ## License
