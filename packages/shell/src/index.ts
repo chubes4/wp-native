@@ -59,3 +59,12 @@ export type {
 	BrowserHandoffHandler,
 	DrawerShellProps,
 } from './navigation';
+
+// ─── Screens (M6) ───────────────────────────────────────────────────────────
+
+export { AbilityDetail } from './screens/ability-detail';
+export type {
+	AbilityDetailAdapter,
+	AbilityDetailProps,
+	AbilityDetailRenderProps,
+} from './screens/ability-detail-types';
