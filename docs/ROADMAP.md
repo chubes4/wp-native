@@ -139,7 +139,7 @@ Rationale: a framework whose entire job is to model a self-describing API surfac
 | M1 | Repo setup, monorepo scaffold | ✅ done |
 | M2 | Audit Extra Chill coupling, file extraction issues | ✅ done |
 | M3 | `packages/api-client` — abilities discovery + execution + auth transport | ✅ done |
-| M4 | `plugins/wp-native-auth` — token auth WordPress plugin | 2–3 sessions |
+| M4 | `plugins/wp-native-auth` — token auth WordPress plugin | ✅ done |
 | M5 | `packages/shell` core — Auth + Theme + Drawer + BrowserHandoff providers | 2–3 sessions |
 | M6 | `packages/shell` screens — generic ability-driven list/detail screens | 1–2 sessions |
 | M7 | Migrate `extrachill-app` to consume `wp-native` | 1–2 sessions |
