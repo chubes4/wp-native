@@ -161,7 +161,7 @@ export function useAuth(): AuthState & AuthActions;
 
 ### `AuthMeUser` shape
 
-Mirror of the User payload from `wp-native/auth.me` per `plugins/wp-native-auth/SCHEMAS.md`:
+Mirror of the User payload from `wp-native/auth-me` per `plugins/wp-native-auth/SCHEMAS.md`:
 
 ```ts
 export interface AuthMeUser {
@@ -177,9 +177,9 @@ export interface AuthMeUser {
 
 ### Behavior
 
-- On mount: load tokens from storage. If present, call `client.discover()` then `client.execute('wp-native/auth.me')` to populate `user`. If 401 on `/me`, call `transport.refreshAccessToken()` once via the standard 401-retry path; if still 401, treat as session expired.
-- On `login(identifier, password)`: call `client.executeUnchecked('wp-native/auth.login', { identifier, password, device_id })`. On success, save tokens, call `discover()`, set `user`.
-- On `logout()`: call `client.execute('wp-native/auth.logout', { device_id })`. Always clear local tokens regardless of server response.
+- On mount: load tokens from storage. If present, call `client.discover()` then `client.execute('wp-native/auth-me')` to populate `user`. If 401 on `/me`, call `transport.refreshAccessToken()` once via the standard 401-retry path; if still 401, treat as session expired.
+- On `login(identifier, password)`: call `client.executeUnchecked('wp-native/auth-login', { identifier, password, device_id })`. On success, save tokens, call `discover()`, set `user`.
+- On `logout()`: call `client.execute('wp-native/auth-logout', { device_id })`. Always clear local tokens regardless of server response.
 - On 401 from any non-refresh request: AuthFetchTransport already handles single-shot retry; if that fails, sets `sessionExpired = true` and calls `onAuthFailure?.()`.
 
 ### Files
@@ -389,7 +389,7 @@ export interface WPNativeBrowserHandoffConfig {
   /** Hosts to exclude even if they match handoffHosts (e.g. a short-link domain). */
   excludeHosts?: string[];
 
-  /** Ability name used to mint the handoff token. Default: `wp-native/auth.browser-handoff`. */
+  /** Ability name used to mint the handoff token. Default: `wp-native/auth-browser-handoff`. */
   handoffAbility?: string;
 }
 ```

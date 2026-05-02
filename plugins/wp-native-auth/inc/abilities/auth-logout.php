@@ -1,6 +1,6 @@
 <?php
 /**
- * Ability: wp-native/auth.logout
+ * Ability: wp-native/auth-logout
  *
  * Mark the device's refresh token as revoked. Access tokens cannot be
  * invalidated server-side (they're short-lived), but the refresh chain
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_register_logout_ability' ) ) {
 	/**
-	 * Register the wp-native/auth.logout ability.
+	 * Register the wp-native/auth-logout ability.
 	 *
 	 * @return void
 	 */
@@ -27,7 +27,7 @@ if ( ! function_exists( 'wp_native_auth_register_logout_ability' ) ) {
 		}
 
 		wp_register_ability(
-			'wp-native/auth.logout',
+			'wp-native/auth-logout',
 			array(
 				'label'               => __( 'Revoke the refresh token for a device', 'wp-native-auth' ),
 				'description'         => __( 'Mark the device\'s refresh token as revoked. Access tokens cannot be invalidated server-side (they\'re short-lived), but the refresh chain ends here.', 'wp-native-auth' ),
@@ -63,7 +63,7 @@ if ( ! function_exists( 'wp_native_auth_register_logout_ability' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_execute_logout_ability' ) ) {
 	/**
-	 * Execute callback for wp-native/auth.logout.
+	 * Execute callback for wp-native/auth-logout.
 	 *
 	 * Delegates to the token service shipped in M4.2.
 	 * Uses the current user from the bearer token — not from input.

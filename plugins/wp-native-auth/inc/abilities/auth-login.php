@@ -1,6 +1,6 @@
 <?php
 /**
- * Ability: wp-native/auth.login
+ * Ability: wp-native/auth-login
  *
  * Authenticate a user by credentials and issue an access + refresh token
  * pair bound to a device.
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_register_login_ability' ) ) {
 	/**
-	 * Register the wp-native/auth.login ability.
+	 * Register the wp-native/auth-login ability.
 	 *
 	 * @return void
 	 */
@@ -26,7 +26,7 @@ if ( ! function_exists( 'wp_native_auth_register_login_ability' ) ) {
 		}
 
 		wp_register_ability(
-			'wp-native/auth.login',
+			'wp-native/auth-login',
 			array(
 				'label'               => __( 'Log in with username or email + password', 'wp-native-auth' ),
 				'description'         => __( 'Authenticate a user by credentials and issue an access token + refresh token bound to a device.', 'wp-native-auth' ),
@@ -95,7 +95,7 @@ if ( ! function_exists( 'wp_native_auth_register_login_ability' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_execute_login_ability' ) ) {
 	/**
-	 * Execute callback for wp-native/auth.login.
+	 * Execute callback for wp-native/auth-login.
 	 *
 	 * Delegates to the token service shipped in M4.2.
 	 *

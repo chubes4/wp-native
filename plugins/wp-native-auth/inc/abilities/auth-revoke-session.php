@@ -1,6 +1,6 @@
 <?php
 /**
- * Ability: wp-native/auth.revoke-session
+ * Ability: wp-native/auth-revoke-session
  *
  * Like auth.logout, but takes a target device_id rather than the bearer
  * token's own device. Used to remotely sign out other devices.
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_register_revoke_session_ability' ) ) {
 	/**
-	 * Register the wp-native/auth.revoke-session ability.
+	 * Register the wp-native/auth-revoke-session ability.
 	 *
 	 * @return void
 	 */
@@ -26,7 +26,7 @@ if ( ! function_exists( 'wp_native_auth_register_revoke_session_ability' ) ) {
 		}
 
 		wp_register_ability(
-			'wp-native/auth.revoke-session',
+			'wp-native/auth-revoke-session',
 			array(
 				'label'               => __( 'Revoke a specific device session', 'wp-native-auth' ),
 				'description'         => __( 'Like auth.logout, but takes a target device_id rather than the bearer token\'s own device. Used to remotely sign out other devices.', 'wp-native-auth' ),
@@ -62,7 +62,7 @@ if ( ! function_exists( 'wp_native_auth_register_revoke_session_ability' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_execute_revoke_session_ability' ) ) {
 	/**
-	 * Execute callback for wp-native/auth.revoke-session.
+	 * Execute callback for wp-native/auth-revoke-session.
 	 *
 	 * Delegates to the token service shipped in M4.2.
 	 * Uses the current user from the bearer token — not from input.

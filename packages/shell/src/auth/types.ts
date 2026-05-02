@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 // ─── User ────────────────────────────────────────────────────────────────────
 
 /**
- * The user payload returned by `wp-native/auth.me`.
+ * The user payload returned by `wp-native/auth-me`.
  *
  * Matches the `User` object from wp-native-auth SCHEMAS.md.
  * No EC-specific fields — those are layered via the
@@ -89,12 +89,12 @@ export interface AuthState {
 export interface AuthActions {
   /**
    * Log in with email/username and password.
-   * Calls `wp-native/auth.login`, stores tokens, runs discover(), sets user.
+   * Calls `wp-native/auth-login`, stores tokens, runs discover(), sets user.
    */
   login: (identifier: string, password: string) => Promise<void>;
 
   /**
-   * Log out. Calls `wp-native/auth.logout`, then always clears local tokens
+   * Log out. Calls `wp-native/auth-logout`, then always clears local tokens
    * regardless of server response.
    */
   logout: () => Promise<void>;

@@ -1,6 +1,6 @@
 <?php
 /**
- * Ability: wp-native/auth.me
+ * Ability: wp-native/auth-me
  *
  * Returns the user payload for whoever the bearer token authenticates.
  *
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_register_me_ability' ) ) {
 	/**
-	 * Register the wp-native/auth.me ability.
+	 * Register the wp-native/auth-me ability.
 	 *
 	 * @return void
 	 */
@@ -25,7 +25,7 @@ if ( ! function_exists( 'wp_native_auth_register_me_ability' ) ) {
 		}
 
 		wp_register_ability(
-			'wp-native/auth.me',
+			'wp-native/auth-me',
 			array(
 				'label'               => __( 'Get the currently authenticated user', 'wp-native-auth' ),
 				'description'         => __( 'Returns the user payload for whoever the bearer token authenticates.', 'wp-native-auth' ),
@@ -52,7 +52,7 @@ if ( ! function_exists( 'wp_native_auth_register_me_ability' ) ) {
 
 if ( ! function_exists( 'wp_native_auth_execute_me_ability' ) ) {
 	/**
-	 * Execute callback for wp-native/auth.me.
+	 * Execute callback for wp-native/auth-me.
 	 *
 	 * Delegates to the token service shipped in M4.2 to build the user payload.
 	 *

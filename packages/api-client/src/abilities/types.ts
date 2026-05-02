@@ -19,7 +19,7 @@ export interface AbilityDescriptor {
   /**
    * Unique identifier, namespaced. Examples:
    *   wp/post.list
-   *   wp-native/auth.login
+   *   wp-native/auth-login
    *   extrachill/artist.get
    */
   name: string;

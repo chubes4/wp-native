@@ -3,7 +3,7 @@
  *
  * Manages the full auth lifecycle:
  *   - On mount: load tokens from storage → discover abilities → fetch /me
- *   - login(identifier, password): email/password auth via wp-native/auth.login
+ *   - login(identifier, password): email/password auth via wp-native/auth-login
  *   - logout(): revoke server session + clear local tokens
  *   - refreshSession(): force a token refresh via the transport
  *   - sessionExpired flag surfaces irrecoverable 401s to the consumer
@@ -26,7 +26,7 @@ import type {
 import { buildAuthStack } from './transport';
 import type { AuthStack } from './transport';
 
-// ─── Login response shape (from wp-native/auth.login output schema) ──────────
+// ─── Login response shape (from wp-native/auth-login output schema) ──────────
 
 interface LoginResponse {
   access_token: string;
@@ -36,7 +36,7 @@ interface LoginResponse {
   user: AuthMeUser;
 }
 
-// ─── Me response shape (from wp-native/auth.me output schema) ────────────────
+// ─── Me response shape (from wp-native/auth-me output schema) ────────────────
 
 interface MeResponse {
   user: AuthMeUser;
@@ -113,7 +113,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
       // Discover abilities first so subsequent execute() calls validate.
       await client.discover();
 
-      const meResponse = await client.execute<MeResponse>('wp-native/auth.me');
+      const meResponse = await client.execute<MeResponse>('wp-native/auth-me');
       setState({
         user: meResponse.user,
         isLoading: false,
@@ -154,7 +154,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
 
     // Login is pre-discovery — use executeUnchecked.
     const response = await client.executeUnchecked<LoginResponse>(
-      'wp-native/auth.login',
+      'wp-native/auth-login',
       { identifier, password, device_id: deviceId },
     );
 
@@ -183,7 +183,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
       if (transport.hasTokens()) {
         const deviceId = await getDeviceId();
         await client.execute<{ revoked: boolean }>(
-          'wp-native/auth.logout',
+          'wp-native/auth-logout',
           { device_id: deviceId },
         );
       }
@@ -209,7 +209,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
     // Force a refresh by making a request — the transport's proactive
     // refresh logic handles the actual token rotation.
     try {
-      const meResponse = await client.execute<MeResponse>('wp-native/auth.me');
+      const meResponse = await client.execute<MeResponse>('wp-native/auth-me');
       setState((prev) => ({
         ...prev,
         user: meResponse.user,

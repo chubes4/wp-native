@@ -34,14 +34,14 @@ This is **fine** — wp-native handles this differently:
   - Turnstile (still web-only via `pre_authenticate` filter)
   - Two-Factor Authentication redirect (still web-only)
 
-The extrachill-app then calls `wp-native/auth.login` (universal name) and the EC bridge transparently enforces EC policy. No EC-namespaced auth abilities needed.
+The extrachill-app then calls `wp-native/auth-login` (universal name) and the EC bridge transparently enforces EC policy. No EC-namespaced auth abilities needed.
 
 ## Endpoints used by extrachill-app today
 
 ```
-api.auth.login              → extrachill/v1/auth/login          → maps to wp-native/auth.login
-api.auth.logout             → extrachill/v1/auth/logout         → maps to wp-native/auth.logout
-api.auth.me                 → extrachill/v1/auth/me             → maps to wp-native/auth.me
+api.auth.login              → extrachill/v1/auth/login          → maps to wp-native/auth-login
+api.auth.logout             → extrachill/v1/auth/logout         → maps to wp-native/auth-logout
+api.auth.me                 → extrachill/v1/auth/me             → maps to wp-native/auth-me
 api.auth.register           → extrachill/v1/auth/register       → no equivalent in wp-native (M4 scope) ⚠
 api.auth.loginWithGoogle    → extrachill/v1/auth/google         → no equivalent in wp-native (M4 scope) ⚠
 api.auth.getOAuthConfig     → extrachill/v1/config/oauth        → no equivalent in wp-native (M4 scope) ⚠
@@ -57,13 +57,13 @@ Plus `transport.*` methods (clearAuth, hasTokens, initialize, setOnAuthFailure, 
 
 | App call | Server endpoint | wp-native equivalent | Action |
 |---|---|---|---|
-| `api.auth.login` | `extrachill/v1/auth/login` | `wp-native/auth.login` | M4 ✅ — bridge plugin enforces EC policy |
-| `api.auth.logout` | `extrachill/v1/auth/logout` | `wp-native/auth.logout` | M4 ✅ |
-| `api.auth.me` | `extrachill/v1/auth/me` | `wp-native/auth.me` | M4 ✅ — bridge plugin decorates user payload |
+| `api.auth.login` | `extrachill/v1/auth/login` | `wp-native/auth-login` | M4 ✅ — bridge plugin enforces EC policy |
+| `api.auth.logout` | `extrachill/v1/auth/logout` | `wp-native/auth-logout` | M4 ✅ |
+| `api.auth.me` | `extrachill/v1/auth/me` | `wp-native/auth-me` | M4 ✅ — bridge plugin decorates user payload |
 | `api.auth.register` | `extrachill/v1/auth/register` | ❌ NOT in wp-native M4 | **Decision needed** (see below) |
 | `api.auth.loginWithGoogle` | `extrachill/v1/auth/google` | ❌ NOT in wp-native | OAuth deferred to post-M4 |
 | `api.auth.getOAuthConfig` | `extrachill/v1/config/oauth` | ❌ NOT in wp-native | Same — OAuth deferred |
-| `api.auth.createBrowserHandoff` | `extrachill/v1/auth/browser-handoff` | M5.3 hook + handoff ability TBD | Need to register `wp-native/auth.browser-handoff` |
+| `api.auth.createBrowserHandoff` | `extrachill/v1/auth/browser-handoff` | M5.3 hook + handoff ability TBD | Need to register `wp-native/auth-browser-handoff` |
 | `api.users.getOnboardingStatus` | `extrachill/v1/users/onboarding` (GET) | `extrachill/get-onboarding-status` | ✅ EXISTS — call as ability today |
 | `api.users.submitOnboarding` | `extrachill/v1/users/onboarding` (POST) | `extrachill/complete-onboarding` | ✅ EXISTS — call as ability today |
 
@@ -91,7 +91,7 @@ EC currently calls `wp-native-app` Google OAuth directly. Two paths:
 
 `api.auth.createBrowserHandoff` currently exists as a REST endpoint in extrachill-users. Two paths:
 
-- **A. Promote to `wp-native/auth.browser-handoff`** ability registered by wp-native-auth.
+- **A. Promote to `wp-native/auth-browser-handoff`** ability registered by wp-native-auth.
 - **B. Keep in extrachill-users** as `extrachill/auth.browser-handoff`.
 
 **Recommendation: A.** Browser handoff is a generic native-app pattern (open web URL with a one-time session token). The EC implementation is already platform-agnostic — just needs to move into wp-native-auth as a 7th ability post-M4.
@@ -127,7 +127,7 @@ M7 (the migration):
   ─ Migrate extrachill-app auth calls to wp-native/auth.* via wp-native-client
   ─ Migrate onboarding to extrachill/complete-onboarding etc.
   ─ Keep extrachill/v1/auth/register REST route alive (web blocks still use it)
-  ─ App calls wp-native/auth.login (uniform), web calls /v1/auth/register (EC-specific)
+  ─ App calls wp-native/auth-login (uniform), web calls /v1/auth/register (EC-specific)
 ```
 
 ## Full inventory (reference)
