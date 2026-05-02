@@ -3,6 +3,7 @@
  *
  * M5 surface — auth (M5.1), theme (M5.2), navigation (M5.3),
  * app composition (M5.4).
+ * M6 surface — ability-driven screens (M6.1).
  */
 
 export const PACKAGE_NAME = 'wp-native-shell' as const;
@@ -61,6 +62,13 @@ export type {
 } from './navigation';
 
 // ─── Screens (M6) ───────────────────────────────────────────────────────────
+
+export { AbilityList } from './screens/ability-list';
+export type {
+	AbilityListAdapter,
+	AbilityListItemProps,
+	AbilityListProps,
+} from './screens/ability-list-types';
 
 export { AbilityDetail } from './screens/ability-detail';
 export type {
