@@ -1,8 +1,7 @@
 {
   "name": "wp-native-client",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Universal WordPress client built on the Abilities API. Discovery + execution. No per-site wrappers.",
+  "version": "0.0.1",
+  "description": "Universal WordPress client built on the Abilities API. Discovery + execution. Works in WordPress blocks, React Native, and Node — one client, three transports, one ability surface.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "source": "src/index.ts",
@@ -16,8 +15,31 @@
       "default": "./dist/wordpress.js"
     }
   },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "GPL-2.0-or-later",
+  "author": "Chris Huber <chubes@extrachill.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chubes4/wp-native.git",
+    "directory": "packages/api-client"
+  },
+  "homepage": "https://github.com/chubes4/wp-native/tree/main/packages/api-client",
+  "bugs": "https://github.com/chubes4/wp-native/issues",
+  "keywords": [
+    "wordpress",
+    "abilities-api",
+    "headless",
+    "client",
+    "react-native",
+    "gutenberg"
+  ],
   "scripts": {
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "prepublishOnly": "tsc -b"
   }
 }

@@ -1,0 +1,27 @@
+{
+  "name": "wp-native",
+  "version": "0.0.1",
+  "description": "Turn any WordPress site into a real native app. Open source. Token auth. No WebViews. Meta package — see wp-native-client and wp-native-shell.",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "GPL-2.0-or-later",
+  "author": "Chris Huber <chubes@extrachill.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chubes4/wp-native.git"
+  },
+  "homepage": "https://github.com/chubes4/wp-native",
+  "bugs": "https://github.com/chubes4/wp-native/issues",
+  "keywords": [
+    "wordpress",
+    "react-native",
+    "abilities-api",
+    "headless",
+    "framework",
+    "mobile-app"
+  ]
+}

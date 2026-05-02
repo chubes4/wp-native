@@ -1,14 +1,36 @@
 {
   "name": "wp-native-shell",
-  "version": "0.0.0",
-  "private": true,
-  "description": "React Native app shell for wp-native. Drawer, auth, theme, browser handoff, ability-driven screens.",
+  "version": "0.0.1",
+  "description": "React Native app shell for wp-native. Drawer, auth, theme, browser handoff, ability-driven screens. Turn any WordPress site into a real native app.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "source": "src/index.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "GPL-2.0-or-later",
+  "author": "Chris Huber <chubes@extrachill.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chubes4/wp-native.git",
+    "directory": "packages/shell"
+  },
+  "homepage": "https://github.com/chubes4/wp-native/tree/main/packages/shell",
+  "bugs": "https://github.com/chubes4/wp-native/issues",
+  "keywords": [
+    "wordpress",
+    "react-native",
+    "expo",
+    "abilities-api",
+    "mobile-app",
+    "framework"
+  ],
   "scripts": {
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "prepublishOnly": "tsc -b"
   },
   "peerDependencies": {
     "react": ">=19",
