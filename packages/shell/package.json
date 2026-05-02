@@ -1,0 +1,14 @@
+{
+  "name": "wp-native-shell",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React Native app shell for wp-native. Drawer, auth, theme, browser handoff, generic post screens.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "license": "GPL-2.0-or-later",
+  "peerDependencies": {
+    "react": ">=19",
+    "react-native": ">=0.80",
+    "expo-router": ">=6"
+  }
+}
