@@ -25,7 +25,7 @@ export interface AbilityDetailAdapter<TEntity> {
 	 * passed as the `input` argument to `client.execute(ability, input)`.
 	 * When absent, the component defaults to `{ id }`.
 	 */
-	buildInput?: (id: string) => Record<string, unknown>;
+	buildInput?: (id: string | number) => Record<string, unknown>;
 
 	/**
 	 * Extract the entity from the raw ability result.
@@ -60,7 +60,7 @@ export interface AbilityDetailRenderProps<TEntity> {
  */
 export interface AbilityDetailProps<TEntity> {
 	/** The entity identifier to fetch. */
-	id: string;
+	id: string | number;
 
 	/** The ability name to execute (e.g. `"wp/post.get"`). */
 	ability: string;
