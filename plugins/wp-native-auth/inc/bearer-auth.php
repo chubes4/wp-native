@@ -1,13 +1,10 @@
 <?php
 /**
- * Bearer token authentication scaffold.
+ * Bearer token authentication.
  *
- * Reads `Authorization: Bearer <token>` from the incoming request and (in M4.2)
- * resolves it to a WordPress user via the `determine_current_user` filter so
- * that ability permission callbacks can rely on `is_user_logged_in()`.
- *
- * This file is the M4.1 scaffold: it extracts the token but does NOT yet
- * validate it. The validator lands in M4.2 alongside the token issuance code.
+ * Reads `Authorization: Bearer <token>` from the incoming request and resolves
+ * it to a WordPress user via the `determine_current_user` filter so that
+ * ability permission callbacks can rely on `is_user_logged_in()`.
  *
  * @package WPNativeAuth
  */
@@ -23,14 +20,11 @@ add_filter( 'determine_current_user', 'wp_native_auth_authenticate_bearer_token'
  *
  * If WordPress already determined a user (e.g. via cookie auth) we yield to
  * that — we never override an existing logged-in session. Otherwise we look
- * for a Bearer token in the Authorization header and, in M4.2, validate it.
+ * for a Bearer token in the Authorization header and, if present, hand it to
+ * `wp_native_auth_validate_access_token()` to resolve to a user id.
  *
  * @param int|false $user_id Current user id resolved by an earlier filter, or false.
- * @return int|false Resolved user id, or the original value on passthrough.
- *
- * @todo M4.2 — call wp_native_auth_validate_access_token( $token ) here and
- *       return the resolved user id on success. The validator will be defined
- *       in inc/tokens.php as part of the M4.2 PR.
+ * @return int|false Resolved user id on successful bearer auth, or the original value.
  */
 function wp_native_auth_authenticate_bearer_token( int|false $user_id ): int|false {
 	if ( $user_id ) {
@@ -42,9 +36,16 @@ function wp_native_auth_authenticate_bearer_token( int|false $user_id ): int|fal
 		return $user_id;
 	}
 
-	// TODO(M4.2): replace this passthrough with the access-token validator.
-	// Until M4.2 lands the bearer header is parsed but ignored.
-	return $user_id;
+	if ( ! function_exists( 'wp_native_auth_validate_access_token' ) ) {
+		return $user_id;
+	}
+
+	$resolved = wp_native_auth_validate_access_token( $token );
+	if ( null === $resolved ) {
+		return $user_id;
+	}
+
+	return $resolved;
 }
 
 /**
