@@ -1,7 +1,7 @@
 /**
  * DrawerShell — config-driven drawer navigation for wp-native-shell.
  *
- * Matches SHELL.md M5.3 contract.
+ * Matches SHELL.md M5.3 contract + M6.3 SectionScreen integration.
  *
  * Lineage: extrachill-app's `(drawer)/_layout.tsx` + `DrawerContent.tsx`,
  * generalized from hardcoded EC sections to config-driven NavigationSections.
@@ -16,6 +16,7 @@ import { useAuth } from '../auth';
 import type { AuthState } from '../auth';
 import type { NavigationSection, WPNativeNavigationConfig } from './types';
 import type { WPNativeBrowserHandoffConfig } from './handoff';
+import { SectionScreen } from '../screens/section-screen';
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -78,33 +79,8 @@ export function NavigationConfigProvider({
 
 const Drawer = createDrawerNavigator();
 
-/**
- * Placeholder screen rendered for sections that have an `ability` but no
- * custom `screen`. M6 replaces these with generic ability-driven screens.
- */
-function AbilityPlaceholderScreen({
-  label,
-}: {
-  label: string;
-}): React.ReactElement {
-  return (
-    <View style={placeholderStyles.container}>
-      <Text style={placeholderStyles.text}>Loading {label}...</Text>
-    </View>
-  );
-}
-
-const placeholderStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    fontSize: 16,
-    opacity: 0.6,
-  },
-});
+// AbilityPlaceholderScreen removed in M6.3 — SectionScreen now owns
+// the routing decision (consumer screen vs M6 list vs placeholder).
 
 // ─── Drawer Content ──────────────────────────────────────────────────────────
 
@@ -244,14 +220,10 @@ export function DrawerShell({
         <Drawer.Screen
           key={section.id}
           name={section.id}
-          component={
-            section.screen ??
-            (() => (
-              <AbilityPlaceholderScreen label={section.label} />
-            ))
-          }
           options={{ title: section.label }}
-        />
+        >
+          {() => <SectionScreen section={section} />}
+        </Drawer.Screen>
       ))}
     </Drawer.Navigator>
   );
