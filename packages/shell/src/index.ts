@@ -1,7 +1,7 @@
 /**
  * wp-native-shell — React Native app shell for wp-native.
  *
- * M5 surface — auth (M5.1), theme (M5.2), navigation (M5.3 lands separately).
+ * M5 surface — auth (M5.1), theme (M5.2), navigation (M5.3).
  */
 
 export const PACKAGE_NAME = 'wp-native-shell' as const;
@@ -28,3 +28,20 @@ export {
 } from './theme';
 
 export type { ThemeTokens, ThemeProviderProps } from './theme';
+
+// ─── Navigation (M5.3) ──────────────────────────────────────────────────────
+
+export {
+	DrawerShell,
+	NavigationConfigProvider,
+	useNavigationConfig,
+	useBrowserHandoff,
+} from './navigation';
+
+export type {
+	NavigationSection,
+	WPNativeNavigationConfig,
+	WPNativeBrowserHandoffConfig,
+	BrowserHandoffHandler,
+	DrawerShellProps,
+} from './navigation';
