@@ -24,6 +24,7 @@ require_once __DIR__ . '/abilities/auth-logout.php';
 require_once __DIR__ . '/abilities/auth-me.php';
 require_once __DIR__ . '/abilities/auth-sessions.php';
 require_once __DIR__ . '/abilities/auth-revoke-session.php';
+require_once __DIR__ . '/abilities/auth-browser-handoff.php';
 
 if ( ! function_exists( 'wp_native_auth_register_ability_category' ) ) {
 	/**
@@ -63,6 +64,7 @@ if ( ! function_exists( 'wp_native_auth_register_abilities' ) ) {
 		wp_native_auth_register_me_ability();
 		wp_native_auth_register_sessions_ability();
 		wp_native_auth_register_revoke_session_ability();
+		wp_native_auth_register_browser_handoff_ability();
 	}
 }
 

@@ -51,6 +51,12 @@ require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/service.php';
 // Bearer token request filter (resolves Authorization header → current user).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/bearer-auth.php';
 
+// Browser handoff token primitives (mint + validate).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/handoff-tokens.php';
+
+// Browser handoff receiver (init-hooked handler for ?wp-native-handoff=<token>).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/handoff-receiver.php';
+
 // Ability registrations (the public surface for wp-native-client).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/abilities.php';
 
