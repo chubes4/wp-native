@@ -18,6 +18,8 @@
     "clean": "tsc -b --clean"
   },
   "devDependencies": {
+    "@react-navigation/drawer": "^7.9.9",
+    "@react-navigation/native": "^7.2.2",
     "@types/react": "^19.2.14",
     "typescript": "^5.7.0"
   }
