@@ -352,6 +352,79 @@ Same output and error shape as `auth.logout`.
 
 ---
 
+### `wp-native/auth-browser-handoff`
+
+**Category:** `wp-native-auth`
+**Label:** Generate a browser handoff URL
+**Description:** Mint a one-time signed URL that establishes a WordPress browsing session when opened in the system browser. Used by wp-native-shell's `useBrowserHandoff()` hook to bridge from the app to web flows that aren't yet ability-callable (checkout, password reset, etc.).
+
+#### Input schema
+
+```json
+{
+  "type": "object",
+  "required": ["url"],
+  "additionalProperties": false,
+  "properties": {
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Destination URL to open in the browser. Must be a valid http(s) URL."
+    }
+  }
+}
+```
+
+Authenticated via Bearer token. The `user_id` is derived from the bearer token, not the input.
+
+#### Output schema
+
+```json
+{
+  "type": "object",
+  "required": ["handoff_url", "expires_at"],
+  "additionalProperties": false,
+  "properties": {
+    "handoff_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "The original URL with a ?wp-native-handoff=<token> query appended."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the handoff token expires (~60 seconds from issuance)."
+    }
+  }
+}
+```
+
+#### Token semantics
+
+- Token: 64-character random string via `wp_generate_password( 64, true, true )`
+- Storage: transient keyed `wp_native_auth_handoff_<sha256(token)>` → `{ user_id: int, created_at: int }`
+- TTL: 60 seconds (constant `WP_NATIVE_AUTH_HANDOFF_TOKEN_TTL`)
+- Single-use: transient is deleted on validation regardless of outcome
+
+#### Receiver side
+
+The plugin hooks `init` (priority 1) to check for `?wp-native-handoff=<token>`. On valid token:
+
+1. Token is consumed (deleted from transient store)
+2. `wp_set_current_user()` + `wp_set_auth_cookie()` establish a WP session
+3. `wp_safe_redirect()` to the original URL minus the handoff query param
+
+On invalid/expired token, the handler calls `wp_die()` with a 403 response.
+
+#### Error codes
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `invalid_url` | 400 | `url` is not a valid http(s) URL (fails `wp_http_validate_url`) |
+| `not_authenticated` | 401 | No valid bearer token |
+
+---
+
 ## NOT in M4 (explicit out-of-scope)
 
 These belong to the framework but ship later:
@@ -359,7 +432,7 @@ These belong to the framework but ship later:
 - ❌ **OAuth abilities** (`wp-native/auth.oauth.google`, etc.) — M4.5+ once the base flow is dogfooded
 - ❌ **Password reset** — web-only flow, lives outside the framework
 - ❌ **Two-Factor Authentication integration** — extension hook only in M4 (see "Extension points")
-- ❌ **Browser handoff** — separate ability namespace later, not part of auth
+- ✅ ~~**Browser handoff**~~ — shipped as `wp-native/auth-browser-handoff` in M4.5
 - ❌ **Registration ability** — `wp-native/user.register` is a separate concern from auth (auth abilities are for *existing* users)
 
 ## Extension points (filters and actions)
