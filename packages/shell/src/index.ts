@@ -1,11 +1,22 @@
 /**
  * wp-native-shell — React Native app shell for wp-native.
  *
- * M5.2: Theme — ThemeProvider, useTheme, ThemeTokens, defaultThemeTokens.
- * Other slices (auth, navigation) land in parallel PRs.
+ * M5 surface — auth (M5.1), theme (M5.2), navigation (M5.3 lands separately).
  */
 
 export const PACKAGE_NAME = 'wp-native-shell' as const;
+
+// ─── Auth (M5.1) ────────────────────────────────────────────────────────────
+
+export { AuthProvider, useAuth } from './auth';
+export type {
+	AuthState,
+	AuthActions,
+	AuthMeUser,
+	TokenStorageAdapter,
+	WPNativeApiConfig,
+	AuthProviderProps,
+} from './auth';
 
 // ─── Theme (M5.2) ───────────────────────────────────────────────────────────
 
