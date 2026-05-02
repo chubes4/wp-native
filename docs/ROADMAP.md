@@ -140,7 +140,7 @@ Rationale: a framework whose entire job is to model a self-describing API surfac
 | M2 | Audit Extra Chill coupling, file extraction issues | ✅ done |
 | M3 | `packages/api-client` — abilities discovery + execution + auth transport | ✅ done |
 | M4 | `plugins/wp-native-auth` — token auth WordPress plugin | ✅ done |
-| M5 | `packages/shell` core — Auth + Theme + Drawer + BrowserHandoff providers | 2–3 sessions |
+| M5 | `packages/shell` core — Auth + Theme + Drawer + BrowserHandoff + WPNativeApp | ✅ done |
 | M6 | `packages/shell` screens — generic ability-driven list/detail screens | 1–2 sessions |
 | M7 | Migrate `extrachill-app` to consume `wp-native` | 1–2 sessions |
 | M8 | Migrate other `@extrachill/api-client` consumers, retire the package | 1–2 sessions |
