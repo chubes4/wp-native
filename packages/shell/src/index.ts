@@ -44,21 +44,25 @@ export {
 
 export type { ThemeTokens, ThemeProviderProps } from './theme';
 
-// ─── Navigation (M5.3) ──────────────────────────────────────────────────────
+// ─── Navigation (M5.3 → expo-router rebase) ────────────────────────────────
 
 export {
+	DrawerContent,
 	DrawerShell,
 	NavigationConfigProvider,
 	useNavigationConfig,
+	BrowserHandoffProvider,
+	useBrowserHandoffConfig,
 	useBrowserHandoff,
 } from './navigation';
 
 export type {
+	DrawerContentProps,
+	DrawerShellProps,
 	NavigationSection,
 	WPNativeNavigationConfig,
 	WPNativeBrowserHandoffConfig,
 	BrowserHandoffHandler,
-	DrawerShellProps,
 } from './navigation';
 
 // ─── Screens (M6) ───────────────────────────────────────────────────────────

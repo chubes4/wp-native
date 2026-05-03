@@ -10,7 +10,7 @@
 import { useCallback } from 'react';
 import { Linking } from 'react-native';
 import { useAuth } from '../auth';
-import { useNavigationConfig } from './drawer';
+import { useBrowserHandoffConfig } from './browser-handoff';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ function extractHost(url: string): string {
 /**
  * React hook providing browser handoff capabilities.
  *
- * Reads `browserHandoff` config from the NavigationConfigProvider context
+ * Reads `browserHandoff` config from the BrowserHandoffProvider context
  * and auth state from the AuthProvider.
  *
  * Usage:
@@ -117,7 +117,7 @@ function extractHost(url: string): string {
  * ```
  */
 export function useBrowserHandoff(): BrowserHandoffHandler {
-  const { browserHandoff } = useNavigationConfig();
+  const browserHandoff = useBrowserHandoffConfig();
   const { isAuthenticated, client } = useAuth();
 
   const handle = useCallback(

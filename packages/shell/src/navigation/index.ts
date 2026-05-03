@@ -1,12 +1,14 @@
 /**
  * Navigation module barrel — wp-native-shell.
  *
- * Public API (SHELL.md M5.3):
- *   - DrawerShell component
+ * Public API (expo-router rebase, Slice B):
+ *   - DrawerContent component (slot for expo-router Drawer)
  *   - NavigationConfigProvider context
+ *   - BrowserHandoffProvider context
  *   - useBrowserHandoff() hook
  *   - Types: NavigationSection, WPNativeNavigationConfig,
- *            WPNativeBrowserHandoffConfig, BrowserHandoffHandler
+ *            WPNativeBrowserHandoffConfig, BrowserHandoffHandler,
+ *            DrawerContentProps
  */
 
 // Types
@@ -15,15 +17,18 @@ export type {
   WPNativeNavigationConfig,
 } from './types';
 
-// DrawerShell + context
+// Navigation config context
 export {
-  DrawerShell,
   NavigationConfigProvider,
   useNavigationConfig,
-} from './drawer';
-export type { DrawerShellProps } from './drawer';
+} from './config';
+
+// DrawerContent (replaces DrawerShell)
+export { DrawerContent, DrawerShell } from './drawer-content';
+export type { DrawerContentProps, DrawerShellProps } from './drawer-content';
 
 // Browser handoff
+export { BrowserHandoffProvider, useBrowserHandoffConfig } from './browser-handoff';
 export { useBrowserHandoff } from './handoff';
 export type {
   WPNativeBrowserHandoffConfig,
