@@ -61,6 +61,18 @@ export interface AbilityListAdapter<TItem> {
 	 * Page size. Default: 20.
 	 */
 	perPage?: number | undefined;
+
+	/**
+	 * Build the navigation path for a detail tap. Optional.
+	 *
+	 * When provided, `<AbilityList/>` calls `router.push(detailHref(item))`
+	 * on item tap. When absent, the default is a relative push to
+	 * `./{adapter.itemId(item)}` — i.e. an `[id].tsx` sibling route.
+	 *
+	 * Consumer can override to navigate to a custom path:
+	 *   `detailHref: (item) => \`/artists/\${item.slug}\``
+	 */
+	detailHref?: ((item: TItem) => string) | undefined;
 }
 
 // ─── Component props ─────────────────────────────────────────────────────────

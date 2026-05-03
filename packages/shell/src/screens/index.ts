@@ -5,6 +5,7 @@
  *   - AbilityList + adapter types (M6.1)
  *   - AbilityDetail + adapter types (M6.2)
  *   - SectionScreen + SectionPlaceholder (M6.3)
+ *   - SectionDetailScreen (expo-router rebase — Slice D)
  */
 
 // M6.1
@@ -26,3 +27,7 @@ export type {
 // M6.3
 export { SectionScreen, SectionPlaceholder } from './section-screen';
 export type { SectionScreenProps } from './section-screen';
+
+// Slice D — detail route helper
+export { SectionDetailScreen } from './section-detail-screen';
+export type { SectionDetailScreenProps } from './section-detail-screen';

@@ -7,9 +7,11 @@
  *
  * Features: FlatList rendering, pull-to-refresh, infinite scroll,
  * loading / error / empty states using theme tokens, and detail
- * navigation via detailAbility.
+ * navigation via expo-router's useRouter().
  *
- * @see packages/shell/SCREENS.md § M6.1
+ * expo-router rebase (Slice D): replaces @react-navigation/native
+ * useNavigation() with expo-router useRouter(). Item taps push
+ * to `adapter.detailHref(item)` or `./{itemId}` by default.
  */
 
 import {
@@ -28,7 +30,7 @@ import {
 	Text,
 	View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
 import { useAuth } from '../auth';
 import { useTheme } from '../theme';
@@ -98,15 +100,11 @@ function getErrorMessage(error: unknown): string {
 	return 'An unexpected error occurred.';
 }
 
-// ─── Navigation helper type ──────────────────────────────────────────────────
+// ─── Noop ────────────────────────────────────────────────────────────────────
 
-/**
- * Minimal navigate signature. The actual route registration happens in M6.3 —
- * this component just pushes parameters. The cast at the call site avoids
- * coupling to the full param list before M6.3 lands.
- */
-interface NavigateAction {
-	navigate: (route: string, params: Record<string, unknown>) => void;
+/** No-op press handler for items without detail navigation. */
+function noop(): void {
+	/* intentionally empty */
 }
 
 // ─── RetryButton ─────────────────────────────────────────────────────────
@@ -153,7 +151,7 @@ export const AbilityList: FC<AbilityListProps> = ({
 }: AbilityListProps): ReactElement => {
 	const { client } = useAuth();
 	const theme = useTheme();
-	const navigation = useNavigation() as unknown as NavigateAction;
+	const router = useRouter();
 
 	const perPage = adapter.perPage ?? 20;
 
@@ -244,23 +242,22 @@ export const AbilityList: FC<AbilityListProps> = ({
 
 	const renderItem = useCallback(
 		({ item }: { item: unknown }): ReactElement => {
-			const onPress = detailAbility
+			const onPress = adapter.detailHref
 				? () => {
-						navigation.navigate('detail', {
-							ability: detailAbility,
-							id: adapter.itemId(item),
-						});
+						router.push(adapter.detailHref!(item));
 					}
-				: () => {
-						/* no-op when detailAbility is not set */
-					};
+				: detailAbility
+					? () => {
+							router.push(`./${String(adapter.itemId(item))}`);
+						}
+					: noop;
 
 			return adapter.renderItem({
 				item,
 				onPress,
 			} satisfies AbilityListItemProps<unknown>);
 		},
-		[adapter, detailAbility, navigation],
+		[adapter, detailAbility, router],
 	);
 
 	const keyExtractor = useCallback(
