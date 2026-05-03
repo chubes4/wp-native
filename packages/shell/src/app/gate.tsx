@@ -6,11 +6,8 @@
  *   2. Logged out: render the consumer-supplied loginScreen.
  *   3. Logged in: render the children (consumer-supplied navigation tree).
  *
- * Onboarding gating is layered on top: when config.onboarding.enabled
- * is true, a logged-in user with `onboardingCompleted=false` sees the
- * onboarding screen instead of the main shell. Onboarding completion
- * is detected by the consumer screen — when it returns, the gate
- * advances.
+ * Onboarding gating is consumer-side — wrap the children you pass to
+ * <WPNativeApp/> in your own auth-aware component if you need it.
  */
 
 import React from 'react';
@@ -18,23 +15,19 @@ import type { ComponentType, ReactNode } from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../auth';
 import { useTheme } from '../theme';
-import type { WPNativeOnboardingConfig } from './types';
 
 export interface AuthGateProps {
 	/** Optional fallback rendered while initial auth state loads. */
 	loading?: ReactNode;
 	/** Component rendered when the user is logged out. Consumer-owned. */
 	loginScreen?: ComponentType;
-	/** Optional onboarding gate. */
-	onboarding?: WPNativeOnboardingConfig;
-	/** Rendered when the user is fully authenticated (and onboarded if applicable). */
+	/** Rendered when the user is fully authenticated. */
 	children: ReactNode;
 }
 
 export function AuthGate({
 	loading,
 	loginScreen: LoginScreen,
-	onboarding,
 	children,
 }: AuthGateProps): React.ReactElement {
 	const { isLoading, isAuthenticated } = useAuth();
@@ -48,21 +41,6 @@ export function AuthGate({
 			return <LoginScreen />;
 		}
 		return <DefaultLoginPlaceholder />;
-	}
-
-	if (onboarding?.enabled) {
-		const OnboardingScreen = onboarding.screen;
-		// The shell does not track onboarding-completed state itself —
-		// the consumer screen is responsible for navigating away when done
-		// (typically by calling the configured ability, then re-rendering
-		// when its own state updates). For v0.1 the gate is a one-shot:
-		// once the user is authenticated, render the onboarding screen
-		// instead of the shell. The consumer is expected to dismount /
-		// re-route when complete.
-		//
-		// Future: add an `onboardingCompleted` flag on AuthState driven by
-		// a per-consumer "completion check" callback in the config.
-		return <OnboardingScreen />;
 	}
 
 	return <>{children}</>;

@@ -28,8 +28,8 @@
  *           AuthGate
  *             {children}
  *
- * Theme is outermost so loading / login / onboarding screens (which
- * may render before navigation mounts) can read theme tokens.
+ * Theme is outermost so loading / login screens (which may render
+ * before navigation mounts) can read theme tokens.
  */
 
 import React from 'react';
@@ -61,16 +61,12 @@ export function WPNativeApp({
 	const gateProps: {
 		loading?: typeof loading;
 		loginScreen?: typeof loginScreen;
-		onboarding?: typeof config.onboarding;
 	} = {};
 	if (loading !== undefined) {
 		gateProps.loading = loading;
 	}
 	if (loginScreen !== undefined) {
 		gateProps.loginScreen = loginScreen;
-	}
-	if (config.onboarding !== undefined) {
-		gateProps.onboarding = config.onboarding;
 	}
 
 	return (
