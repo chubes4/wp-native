@@ -48,7 +48,6 @@ export type { ThemeTokens, ThemeProviderProps } from './theme';
 
 export {
 	DrawerContent,
-	DrawerShell,
 	NavigationConfigProvider,
 	useNavigationConfig,
 	BrowserHandoffProvider,
@@ -58,7 +57,6 @@ export {
 
 export type {
 	DrawerContentProps,
-	DrawerShellProps,
 	NavigationSection,
 	WPNativeNavigationConfig,
 	WPNativeBrowserHandoffConfig,
@@ -83,3 +81,6 @@ export type {
 
 export { SectionScreen, SectionPlaceholder } from './screens';
 export type { SectionScreenProps } from './screens';
+
+export { SectionDetailScreen } from './screens';
+export type { SectionDetailScreenProps } from './screens';
