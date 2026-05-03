@@ -22,12 +22,11 @@
  *
  * Composition order (outer to inner):
  *   ThemeProvider
- *     BrandProvider
- *       AuthProvider
- *         NavigationConfigProvider
- *           BrowserHandoffProvider   ← NEW (Slice B)
- *             AuthGate
- *               {children}           ← was DrawerShell
+ *     AuthProvider
+ *       NavigationConfigProvider
+ *         BrowserHandoffProvider
+ *           AuthGate
+ *             {children}
  *
  * Theme is outermost so loading / login / onboarding screens (which
  * may render before navigation mounts) can read theme tokens.
@@ -40,7 +39,6 @@ import {
 	NavigationConfigProvider,
 	BrowserHandoffProvider,
 } from '../navigation';
-import { BrandProvider } from './brand';
 import { AuthGate } from './gate';
 import type { WPNativeAppProps } from './types';
 
@@ -77,17 +75,13 @@ export function WPNativeApp({
 
 	return (
 		<ThemeProvider {...themeProps}>
-			<BrandProvider brand={config.brand}>
-				<AuthProvider api={config.api} storage={config.tokenStorage}>
-					<NavigationConfigProvider {...navigationProps}>
-						<BrowserHandoffProvider {...browserHandoffProps}>
-							<AuthGate {...gateProps}>
-								{children}
-							</AuthGate>
-						</BrowserHandoffProvider>
-					</NavigationConfigProvider>
-				</AuthProvider>
-			</BrandProvider>
+			<AuthProvider api={config.api} storage={config.tokenStorage}>
+				<NavigationConfigProvider {...navigationProps}>
+					<BrowserHandoffProvider {...browserHandoffProps}>
+						<AuthGate {...gateProps}>{children}</AuthGate>
+					</BrowserHandoffProvider>
+				</NavigationConfigProvider>
+			</AuthProvider>
 		</ThemeProvider>
 	);
 }

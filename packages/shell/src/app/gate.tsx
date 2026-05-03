@@ -15,10 +15,9 @@
 
 import React from 'react';
 import type { ComponentType, ReactNode } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../auth';
 import { useTheme } from '../theme';
-import { useBrand } from './brand';
 import type { WPNativeOnboardingConfig } from './types';
 
 export interface AuthGateProps {
@@ -71,7 +70,6 @@ export function AuthGate({
 
 function DefaultLoadingScreen(): React.ReactElement {
 	const theme = useTheme();
-	const brand = useBrand();
 
 	return (
 		<View
@@ -81,26 +79,12 @@ function DefaultLoadingScreen(): React.ReactElement {
 			]}
 		>
 			<ActivityIndicator color={theme.colors.primary} />
-			<Text
-				style={[
-					gateStyles.text,
-					{
-						color: theme.colors.textMuted,
-						fontFamily: theme.typography.fontFamily,
-						fontSize: theme.typography.fontSizes.sm,
-						marginTop: theme.spacing.md,
-					},
-				]}
-			>
-				{brand.welcomeMessage ?? `Loading ${brand.name}…`}
-			</Text>
 		</View>
 	);
 }
 
 function DefaultLoginPlaceholder(): React.ReactElement {
 	const theme = useTheme();
-	const brand = useBrand();
 
 	return (
 		<View
@@ -109,19 +93,6 @@ function DefaultLoginPlaceholder(): React.ReactElement {
 				{ backgroundColor: theme.colors.background },
 			]}
 		>
-			<Text
-				style={[
-					gateStyles.heading,
-					{
-						color: theme.colors.text,
-						fontFamily: theme.typography.fontFamilyBold ?? theme.typography.fontFamily,
-						fontSize: theme.typography.fontSizes['2xl'],
-						marginBottom: theme.spacing.md,
-					},
-				]}
-			>
-				{brand.name}
-			</Text>
 			<Text
 				style={[
 					gateStyles.text,
@@ -132,8 +103,7 @@ function DefaultLoginPlaceholder(): React.ReactElement {
 					},
 				]}
 			>
-				No login screen configured. Pass `loginScreen` to{' '}
-				{`<WPNativeApp/>`} to render your auth UI.
+				Please configure a loginScreen for your app.
 			</Text>
 		</View>
 	);
