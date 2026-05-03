@@ -10,14 +10,11 @@ export const PACKAGE_NAME = 'wp-native-shell' as const;
 
 // ─── App composition (M5.4) ─────────────────────────────────────────────────
 
-export { WPNativeApp, BrandProvider, useBrand, AuthGate } from './app';
+export { WPNativeApp, AuthGate } from './app';
 export type {
 	WPNativeConfig,
 	WPNativeAppProps,
-	WPNativeBrandConfig,
 	WPNativeOnboardingConfig,
-	BrandContextValue,
-	BrandProviderProps,
 	AuthGateProps,
 } from './app';
 

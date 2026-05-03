@@ -3,6 +3,10 @@
  *
  * Per SHELL.md the consumer-facing surface is one config object
  * + a few optional render props.
+ *
+ * Brand identity (app name, tagline, welcome message) is a consumer
+ * concern — not a WP-core primitive. Consumers manage their own brand
+ * strings inline or in their own modules.
  */
 
 import type { ComponentType, ReactNode } from 'react';
@@ -16,21 +20,6 @@ import type {
 	WPNativeBrowserHandoffConfig,
 	WPNativeNavigationConfig,
 } from '../navigation';
-
-/**
- * Visual + copy identity for the consumer app.
- *
- * Brand strings consumed by shell-owned screens (auth screens,
- * default loading state). Consumer-owned screens read whatever they want.
- */
-export interface WPNativeBrandConfig {
-	/** App display name (e.g. "Extra Chill"). */
-	name: string;
-	/** Optional tagline. */
-	tagline?: string;
-	/** Optional welcome message used by default screens. */
-	welcomeMessage?: string;
-}
 
 /**
  * Optional onboarding gate.
@@ -56,9 +45,6 @@ export interface WPNativeOnboardingConfig {
 export interface WPNativeConfig {
 	/** WordPress REST API connection. */
 	api: WPNativeApiConfig;
-
-	/** Visual + copy identity. */
-	brand: WPNativeBrandConfig;
 
 	/** Token storage adapter — consumer plugs in their RN storage. */
 	tokenStorage: TokenStorageAdapter;
@@ -102,11 +88,6 @@ export interface WPNativeAppProps {
 	 */
 	children: ReactNode;
 }
-
-/**
- * `useBrand()` returns the brand config from context.
- */
-export type BrandContextValue = WPNativeBrandConfig;
 
 /** Re-export for callsite convenience. */
 export type { AuthState };
