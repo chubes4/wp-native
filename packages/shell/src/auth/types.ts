@@ -94,6 +94,13 @@ export interface AuthActions {
   login: (identifier: string, password: string) => Promise<void>;
 
   /**
+   * Register a new user account with email and password.
+   * Calls `wp-native/auth-register`, stores tokens, runs discover(), sets user.
+   * Same return contract as login — Promise<void>, throws on failure.
+   */
+  register: (email: string, password: string, passwordConfirm: string) => Promise<void>;
+
+  /**
    * Log out. Calls `wp-native/auth-logout`, then always clears local tokens
    * regardless of server response.
    */

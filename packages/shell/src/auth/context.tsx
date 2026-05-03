@@ -4,6 +4,7 @@
  * Manages the full auth lifecycle:
  *   - On mount: load tokens from storage → discover abilities → fetch /me
  *   - login(identifier, password): email/password auth via wp-native/auth-login
+ *   - register(email, password, passwordConfirm): create account via wp-native/auth-register
  *   - logout(): revoke server session + clear local tokens
  *   - refreshSession(): force a token refresh via the transport
  *   - sessionExpired flag surfaces irrecoverable 401s to the consumer
@@ -176,6 +177,34 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
     });
   }, [stack]);
 
+  const register = useCallback(async (email: string, password: string, passwordConfirm: string) => {
+    const { client, getDeviceId } = stack;
+    const deviceId = await getDeviceId();
+
+    // Register is pre-discovery — use executeUnchecked (same as login).
+    const response = await client.executeUnchecked<LoginResponse>(
+      'wp-native/auth-register',
+      { email, password, password_confirm: passwordConfirm, device_id: deviceId },
+    );
+
+    // Persist tokens via the transport.
+    await (stack.transport as AuthFetchTransport).setTokens({
+      accessToken: response.access_token,
+      refreshToken: response.refresh_token,
+      accessExpiresAt: parseExpiresAt(response.access_expires_at),
+    });
+
+    // Discover abilities now that we're authenticated.
+    await client.discover();
+
+    setState({
+      user: response.user,
+      isLoading: false,
+      isAuthenticated: true,
+      sessionExpired: false,
+    });
+  }, [stack]);
+
   const logout = useCallback(async () => {
     const { client, transport, getDeviceId } = stack;
 
@@ -238,6 +267,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
   const value: AuthContextValue = {
     ...state,
     login,
+    register,
     logout,
     refreshSession,
     clearSessionExpired,
@@ -257,8 +287,8 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
  * Access auth state and actions from within an AuthProvider.
  *
  * Returns `AuthState & AuthActions` — user, isLoading, isAuthenticated,
- * sessionExpired, login, logout, refreshSession, clearSessionExpired,
- * and the underlying WPNativeClient via `client`.
+ * sessionExpired, login, register, logout, refreshSession,
+ * clearSessionExpired, and the underlying WPNativeClient via `client`.
  */
 export function useAuth(): AuthState & AuthActions {
   const context = useContext(AuthContext);
