@@ -4,7 +4,7 @@
  * Three states, in order:
  *   1. Loading: initial token-load + discovery in flight.
  *   2. Logged out: render the consumer-supplied loginScreen.
- *   3. Logged in: render the children (the drawer shell).
+ *   3. Logged in: render the children (consumer-supplied navigation tree).
  *
  * Onboarding gating is layered on top: when config.onboarding.enabled
  * is true, a logged-in user with `onboardingCompleted=false` sees the
