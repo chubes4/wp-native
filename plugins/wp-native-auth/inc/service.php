@@ -3,8 +3,8 @@
  * Generic token lifecycle service for wp-native-auth.
  *
  * Issue, refresh-rotate, revoke, and validate refresh tokens — plus the
- * login flow that wires those primitives together with WordPress's native
- * authentication.
+ * login and registration flows that wire those primitives together with
+ * WordPress's native authentication.
  *
  * Lineage: forked from extrachill-users/inc/auth-tokens/service.php and
  * generalized. Anything Extra Chill specific (community-blog membership,
@@ -572,4 +572,191 @@ function wp_native_auth_list_user_sessions( int $user_id, string $current_device
 	}
 
 	return $sessions;
+}
+
+/**
+ * Register a new user by email + password and issue a fresh token pair.
+ *
+ * Flow:
+ *   1. Validate email via `is_email()`.
+ *   2. Validate password length >= 8.
+ *   3. Validate password === password_confirm.
+ *   4. Validate `device_id` is a UUID v4.
+ *   5. Apply `wp_native_auth_pre_authenticate` filter — short-circuits
+ *      before any user creation (CAPTCHA, IP block, etc.).
+ *   6. Check `email_exists()` → return generic registration_failed
+ *      (prevents email enumeration).
+ *   7. Generate a deterministic username via `wp_hash()`.
+ *   8. Apply `wp_native_auth_pre_register` filter — lets consumers
+ *      adjust the username, set initial meta, or abort.
+ *   9. Call `wp_create_user()` for the actual account creation.
+ *  10. Apply `wp_native_auth_pre_login` filter — same post-user policy
+ *      as login (user blocking, membership checks, etc.).
+ *  11. Issue access + refresh tokens bound to the device.
+ *  12. Fire `wp_native_auth_after_register`.
+ *
+ * @param string               $email            Email address.
+ * @param string               $password         Plaintext password.
+ * @param string               $password_confirm Must match $password.
+ * @param string               $device_id        Device ID (UUID v4).
+ * @param array<string,mixed>  $options          Optional. {
+ *     @type string $device_name Human-readable device name.
+ * }
+ * @return array<string,mixed>|WP_Error Token pair + User on success, WP_Error on failure.
+ */
+function wp_native_auth_register_with_tokens( string $email, string $password, string $password_confirm, string $device_id, array $options = array() ) {
+	$device_name = isset( $options['device_name'] ) ? (string) $options['device_name'] : '';
+
+	// 1. Validate email format.
+	if ( '' === $email || ! is_email( $email ) ) {
+		return new WP_Error(
+			'invalid_email',
+			__( 'Please provide a valid email address.', 'wp-native-auth' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	// 2. Validate password length.
+	if ( strlen( $password ) < 8 ) {
+		return new WP_Error(
+			'password_too_short',
+			__( 'Password must be at least 8 characters.', 'wp-native-auth' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	// 3. Validate password confirmation.
+	if ( $password !== $password_confirm ) {
+		return new WP_Error(
+			'password_mismatch',
+			__( 'Passwords do not match.', 'wp-native-auth' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	// 4. Validate device_id.
+	if ( '' === $device_id || ! wp_native_auth_is_uuid_v4( $device_id ) ) {
+		return new WP_Error(
+			'invalid_device_id',
+			__( 'device_id must be a UUID v4.', 'wp-native-auth' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	// 5. Pre-authenticate filter (CAPTCHA, IP block, etc.).
+	$context = array(
+		'email'     => $email,
+		'device_id' => $device_id,
+	);
+
+	/** This filter is documented in wp_native_auth_login_with_tokens(). */
+	$pre_auth = apply_filters( 'wp_native_auth_pre_authenticate', null, $email, $context );
+	if ( is_wp_error( $pre_auth ) ) {
+		return $pre_auth;
+	}
+
+	// 6. Check if email already exists — use a generic error to prevent enumeration.
+	if ( email_exists( $email ) ) {
+		return new WP_Error(
+			'registration_failed',
+			__( 'Registration could not be completed. Please try again.', 'wp-native-auth' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	// 7. Generate a deterministic default username.
+	$username = 'user' . substr( wp_hash( $email ), 0, 8 );
+
+	// 8. Pre-register filter — consumers can adjust username, set initial meta, or abort.
+	$registration_data = array(
+		'email'    => $email,
+		'password' => $password,
+		'username' => $username,
+	);
+
+	/**
+	 * Filter to modify registration data or abort registration.
+	 *
+	 * Return a WP_Error to abort. Return an array with modified
+	 * registration data (e.g. different username) to continue.
+	 * Null passes through unchanged.
+	 *
+	 * @param null|array|WP_Error $result            Null to continue, WP_Error to abort, array to override.
+	 * @param array               $registration_data Registration data (email, password, username).
+	 * @param array               $context           Registration context (email, device_id).
+	 */
+	$pre_register = apply_filters( 'wp_native_auth_pre_register', null, $registration_data, $context );
+
+	if ( is_wp_error( $pre_register ) ) {
+		return $pre_register;
+	}
+
+	// Allow consumers to override the username via the filter.
+	if ( is_array( $pre_register ) && ! empty( $pre_register['username'] ) ) {
+		$username = (string) $pre_register['username'];
+	}
+
+	// 9. Create the user.
+	$user_id = wp_create_user( $username, $password, $email );
+	if ( is_wp_error( $user_id ) ) {
+		return new WP_Error(
+			'registration_failed',
+			__( 'Registration could not be completed. Please try again.', 'wp-native-auth' ),
+			array( 'status' => 500 )
+		);
+	}
+
+	$user = get_user_by( 'id', $user_id );
+	if ( ! $user instanceof WP_User ) {
+		return new WP_Error(
+			'registration_failed',
+			__( 'Registration could not be completed. Please try again.', 'wp-native-auth' ),
+			array( 'status' => 500 )
+		);
+	}
+
+	// 10. Pre-login filter — same post-user policy as login.
+	$login_context = array(
+		'device_id' => $device_id,
+		'reason'    => 'register',
+	);
+
+	/** This filter is documented in wp_native_auth_login_with_tokens(). */
+	$pre_login = apply_filters( 'wp_native_auth_pre_login', null, $user, $login_context );
+	if ( is_wp_error( $pre_login ) ) {
+		return $pre_login;
+	}
+
+	// 11. Issue tokens.
+	$access  = wp_native_auth_generate_access_token( $user_id, $device_id );
+	$refresh = wp_native_auth_issue_refresh_token( $user_id, $device_id, $device_name );
+
+	$token_pair = array(
+		'access_token'       => $access['token'],
+		'access_expires_at'  => gmdate( 'c', (int) $access['expires_at'] ),
+		'refresh_token'      => $refresh['token'],
+		'refresh_expires_at' => gmdate( 'c', (int) $refresh['expires_at'] ),
+	);
+
+	$payload_context = array(
+		'device_id' => $device_id,
+		'reason'    => 'register',
+	);
+
+	$response = array_merge(
+		$token_pair,
+		array( 'user' => wp_native_auth_build_user_payload( $user, $payload_context ) )
+	);
+
+	// 12. Fire after-register action.
+	/**
+	 * Fires after a successful user registration.
+	 *
+	 * @param int    $user_id    Newly created user ID.
+	 * @param string $device_id  Device ID.
+	 * @param array  $token_pair Token pair (access + refresh + ISO expiries).
+	 */
+	do_action( 'wp_native_auth_after_register', $user_id, $device_id, $token_pair );
+
+	return $response;
 }
