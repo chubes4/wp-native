@@ -1,13 +1,23 @@
 /**
  * <WPNativeApp/> — top-level wrapper composing every shell provider.
  *
- * Consumer apps render exactly this:
+ * After the expo-router rebase (EXPO-ROUTER-REBASE.md Slice C) this
+ * component is a **provider stack only** — it no longer mounts its own
+ * navigation tree.  Consumers supply their own expo-router layout as
+ * `children` (typically a `<Slot/>` or `<Stack/>`).
+ *
+ * Usage:
  *
  *   import { WPNativeApp } from 'wp-native-shell';
+ *   import { Slot } from 'expo-router';
  *   import { config } from './my-app.config';
  *
- *   export default function App() {
- *     return <WPNativeApp config={config} loginScreen={MyLoginScreen} />;
+ *   export default function RootLayout() {
+ *     return (
+ *       <WPNativeApp config={config} loginScreen={MyLoginScreen}>
+ *         <Slot />
+ *       </WPNativeApp>
+ *     );
  *   }
  *
  * Composition order (outer to inner):
@@ -15,8 +25,9 @@
  *     BrandProvider
  *       AuthProvider
  *         NavigationConfigProvider
- *           AuthGate
- *             DrawerShell
+ *           BrowserHandoffProvider   ← NEW (Slice B)
+ *             AuthGate
+ *               {children}           ← was DrawerShell
  *
  * Theme is outermost so loading / login / onboarding screens (which
  * may render before navigation mounts) can read theme tokens.
@@ -27,7 +38,7 @@ import { ThemeProvider } from '../theme';
 import { AuthProvider } from '../auth';
 import {
 	NavigationConfigProvider,
-	DrawerShell,
+	BrowserHandoffProvider,
 } from '../navigation';
 import { BrandProvider } from './brand';
 import { AuthGate } from './gate';
@@ -37,17 +48,17 @@ export function WPNativeApp({
 	config,
 	loading,
 	loginScreen,
+	children,
 }: WPNativeAppProps): React.ReactElement {
 	const themeProps =
 		config.theme === undefined ? {} : { tokens: config.theme };
 
-	const navigationProps =
+	const navigationProps = { navigation: config.navigation };
+
+	const browserHandoffProps =
 		config.browserHandoff === undefined
-			? { navigation: config.navigation }
-			: {
-					navigation: config.navigation,
-					browserHandoff: config.browserHandoff,
-				};
+			? {}
+			: { config: config.browserHandoff };
 
 	const gateProps: {
 		loading?: typeof loading;
@@ -69,9 +80,11 @@ export function WPNativeApp({
 			<BrandProvider brand={config.brand}>
 				<AuthProvider api={config.api} storage={config.tokenStorage}>
 					<NavigationConfigProvider {...navigationProps}>
-						<AuthGate {...gateProps}>
-							<DrawerShell />
-						</AuthGate>
+						<BrowserHandoffProvider {...browserHandoffProps}>
+							<AuthGate {...gateProps}>
+								{children}
+							</AuthGate>
+						</BrowserHandoffProvider>
 					</NavigationConfigProvider>
 				</AuthProvider>
 			</BrandProvider>

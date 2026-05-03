@@ -78,6 +78,10 @@ export interface WPNativeConfig {
 
 /**
  * Props for the top-level `<WPNativeApp/>` wrapper.
+ *
+ * After the expo-router rebase (EXPO-ROUTER-REBASE.md Slice C),
+ * `children` is required — consumers mount their own expo-router
+ * `<Slot/>` / `<Stack/>` / `<Drawer/>` inside `<WPNativeApp/>`.
  */
 export interface WPNativeAppProps {
 	config: WPNativeConfig;
@@ -90,6 +94,13 @@ export interface WPNativeAppProps {
 	 * `login()` / `loginWithGoogle()` etc.
 	 */
 	loginScreen?: ComponentType;
+	/**
+	 * Consumer-supplied navigation tree.
+	 *
+	 * Typically an expo-router `<Slot/>` or `<Stack/>`.
+	 * Rendered inside the AuthGate once the user is authenticated.
+	 */
+	children: ReactNode;
 }
 
 /**
