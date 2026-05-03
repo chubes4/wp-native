@@ -14,7 +14,6 @@ export { WPNativeApp, AuthGate } from './app';
 export type {
 	WPNativeConfig,
 	WPNativeAppProps,
-	WPNativeOnboardingConfig,
 	AuthGateProps,
 } from './app';
 

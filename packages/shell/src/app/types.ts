@@ -7,6 +7,12 @@
  * Brand identity (app name, tagline, welcome message) is a consumer
  * concern — not a WP-core primitive. Consumers manage their own brand
  * strings inline or in their own modules.
+ *
+ * Onboarding flow is also a consumer concern — what "onboarding" means
+ * (username selection, profile completeness, terms acceptance, etc.)
+ * is entirely platform-specific. Consumers gate their own onboarding
+ * by wrapping the children they pass to <WPNativeApp/> in their own
+ * auth-aware component.
  */
 
 import type { ComponentType, ReactNode } from 'react';
@@ -20,24 +26,6 @@ import type {
 	WPNativeBrowserHandoffConfig,
 	WPNativeNavigationConfig,
 } from '../navigation';
-
-/**
- * Optional onboarding gate.
- *
- * When `enabled` is true, the shell routes the user to `screen` after
- * authentication until the consumer-supplied screen reports completion.
- * Completion is signaled by the screen calling the configured `ability`
- * via `client.execute()` and resolving successfully — the shell does not
- * own the contract for what "complete" means.
- */
-export interface WPNativeOnboardingConfig {
-	/** Whether the app gates entry on onboarding completion. */
-	enabled: boolean;
-	/** Ability name the consumer screen calls on completion. */
-	ability: string;
-	/** Consumer-supplied onboarding screen. */
-	screen: ComponentType;
-}
 
 /**
  * Top-level config object passed to `<WPNativeApp/>`.
@@ -57,9 +45,6 @@ export interface WPNativeConfig {
 
 	/** Theme tokens (optional — falls back to built-in defaults). */
 	theme?: Partial<ThemeTokens>;
-
-	/** Onboarding flow (optional). */
-	onboarding?: WPNativeOnboardingConfig;
 }
 
 /**
