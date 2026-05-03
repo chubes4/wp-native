@@ -425,6 +425,73 @@ On invalid/expired token, the handler calls `wp_die()` with a 403 response.
 
 ---
 
+### `wp-native/auth-register`
+
+**Category:** `wp-native-auth`
+**Label:** Register a new user account
+**Description:** Create a new WordPress user by email + password and issue an access token + refresh token bound to a device. Platform-specific registration concerns (CAPTCHA, membership provisioning, etc.) are layered by consumer plugins via the `wp_native_auth_pre_authenticate`, `wp_native_auth_pre_register`, and `wp_native_auth_pre_login` filters.
+
+#### Input schema
+
+```json
+{
+  "type": "object",
+  "required": ["email", "password", "password_confirm", "device_id"],
+  "additionalProperties": false,
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Email address for the new account."
+    },
+    "password": {
+      "type": "string",
+      "minLength": 8,
+      "description": "Plaintext password. Sent over HTTPS only. Minimum 8 characters."
+    },
+    "password_confirm": {
+      "type": "string",
+      "minLength": 8,
+      "description": "Must match password exactly."
+    },
+    "device_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "description": "UUID v4 generated client-side and persisted per device."
+    },
+    "device_name": {
+      "type": "string",
+      "maxLength": 191,
+      "description": "Optional human-readable device name (e.g. 'Chris's iPhone')."
+    }
+  }
+}
+```
+
+#### Output schema
+
+Same as `wp-native/auth-login` output (TokenPair + User).
+
+#### Error codes
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `invalid_email` | 400 | Email is empty or fails `is_email()` validation |
+| `password_too_short` | 400 | Password is shorter than 8 characters |
+| `password_mismatch` | 400 | `password` does not match `password_confirm` |
+| `invalid_device_id` | 400 | `device_id` is not a valid UUID v4 |
+| `registration_failed` | 400 | Email already registered (generic message to prevent enumeration) |
+| `registration_failed` | 500 | `wp_create_user()` returned a `WP_Error` |
+
+#### Extension hooks used
+
+1. `wp_native_auth_pre_authenticate` — fires before any user creation. Consumer can block (Turnstile, IP rate-limit).
+2. `wp_native_auth_pre_register` — fires after validation, before `wp_create_user()`. Consumer can modify `username` or abort.
+3. `wp_native_auth_pre_login` — fires after user creation, before token issuance. Same post-user policy as login.
+4. `wp_native_auth_after_register` — fires after successful registration and token issuance.
+
+---
+
 ## NOT in M4 (explicit out-of-scope)
 
 These belong to the framework but ship later:
@@ -433,7 +500,7 @@ These belong to the framework but ship later:
 - ❌ **Password reset** — web-only flow, lives outside the framework
 - ❌ **Two-Factor Authentication integration** — extension hook only in M4 (see "Extension points")
 - ✅ ~~**Browser handoff**~~ — shipped as `wp-native/auth-browser-handoff` in M4.5
-- ❌ **Registration ability** — `wp-native/user.register` is a separate concern from auth (auth abilities are for *existing* users)
+- ✅ ~~**Registration ability**~~ — shipped as `wp-native/auth-register`
 
 ## Extension points (filters and actions)
 
@@ -456,6 +523,11 @@ apply_filters( 'wp_native_auth_refresh_token_ttl', WP_NATIVE_AUTH_REFRESH_TOKEN_
 
 // Pre-validate registration / login (Turnstile, IP block, etc.).
 apply_filters( 'wp_native_auth_pre_authenticate', null, $identifier, $context );
+
+// Modify registration data or abort before wp_create_user().
+// Return null to continue, WP_Error to abort, or an array with
+// modified registration data (e.g. override username).
+apply_filters( 'wp_native_auth_pre_register', null, $registration_data, $context );
 ```
 
 ### Actions
@@ -463,6 +535,9 @@ apply_filters( 'wp_native_auth_pre_authenticate', null, $identifier, $context );
 ```php
 // Fired after a successful login.
 do_action( 'wp_native_auth_after_login', $user_id, $device_id, $token_pair );
+
+// Fired after a successful registration.
+do_action( 'wp_native_auth_after_register', $user_id, $device_id, $token_pair );
 
 // Fired after a successful refresh.
 do_action( 'wp_native_auth_after_refresh', $user_id, $device_id, $token_pair );
