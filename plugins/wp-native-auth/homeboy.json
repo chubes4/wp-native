@@ -1,0 +1,19 @@
+{
+  "auto_cleanup": false,
+  "changelog_target": "CHANGELOG.md",
+  "extensions": {
+    "wordpress": {}
+  },
+  "id": "wp-native-auth",
+  "remote_path": "wp-content/plugins/wp-native-auth",
+  "version_targets": [
+    {
+      "file": "wp-native-auth.php",
+      "pattern": "(?m)^\\s*\\*?\\s*Version:\\s*([0-9.]+)"
+    },
+    {
+      "file": "wp-native-auth.php",
+      "pattern": "WP_NATIVE_AUTH_VERSION',\\s*'([0-9.]+)'"
+    }
+  ]
+}
