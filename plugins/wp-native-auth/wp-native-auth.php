@@ -45,6 +45,10 @@ require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/db.php';
 // Token primitives (hashing, access-token generation/validation, helpers).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/tokens.php';
 
+// External-service token signing (HMAC-SHA256 signed tokens for delegating
+// scoped access to external services that share an HMAC secret).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/external-tokens.php';
+
 // Token service (login, refresh, revoke, sessions, user payload).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/service.php';
 
