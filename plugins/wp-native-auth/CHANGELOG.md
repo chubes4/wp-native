@@ -2,6 +2,11 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.1.1] - 2026-05-23
+
+### Fixed
+- fix(wp-native-auth): use base64url token alphabet, narrow Authorization header sanitizer (closes #44)
+
 ## [0.1.0] - 2026-05-10
 
 ### Added
