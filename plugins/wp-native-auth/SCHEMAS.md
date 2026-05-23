@@ -401,7 +401,7 @@ Authenticated via Bearer token. The `user_id` is derived from the bearer token, 
 
 #### Token semantics
 
-- Token: 64-character random string via `wp_generate_password( 64, true, true )`
+- Token: 43-character base64url-encoded random string via `wp_native_auth_generate_opaque_token()` (256 random bits, RFC 7235 b64token alphabet)
 - Storage: transient keyed `wp_native_auth_handoff_<sha256(token)>` → `{ user_id: int, created_at: int }`
 - TTL: 60 seconds (constant `WP_NATIVE_AUTH_HANDOFF_TOKEN_TTL`)
 - Single-use: transient is deleted on validation regardless of outcome
@@ -553,7 +553,7 @@ extrachill-users would consume these to enforce community-blog membership, run T
 1. **All abilities live in PHP files under `plugins/wp-native-auth/inc/abilities/`** — one file per ability.
 2. **Ability registration uses `wp_register_ability()`** (the WP 6.9+ Abilities API). Each registration includes the schemas above, the execute callback, and the permission callback.
 3. **Permission callbacks**: `auth.login` and `auth.refresh` are public; everything else requires a valid bearer token (delegate to a shared helper).
-4. **Token generation**: access tokens should be opaque random strings (use `wp_generate_password( 64, true, true )`) for v0.1 — JWT comes later. Refresh tokens same shape.
+4. **Token generation**: access tokens are opaque random strings minted via `wp_native_auth_generate_opaque_token()` (256-bit random, base64url-encoded, 43 chars from `[A-Za-z0-9_-]`) for v0.1 — JWT comes later. Refresh tokens and handoff tokens use the same helper. The alphabet is the RFC 7235 b64token form: HTTP-header-safe, URL-safe, shell-safe, no characters that `sanitize_text_field()` mangles.
 5. **Bearer auth**: M4 must include a small request-time hook that reads `Authorization: Bearer <token>` and resolves it to a `WP_User` via `wp_set_current_user()`. This is the gateway for `is_user_logged_in()` to work in permission callbacks.
 6. **Network-wide tables**: the refresh tokens table uses `$wpdb->base_prefix` so it's shared across all blogs in a multisite install.
 7. **No EC dependencies**: this plugin must run cleanly on a vanilla WP install. No `ec_get_blog_id()`, no `extrachill_*` functions. Anything site-specific is delegated to the filters above.

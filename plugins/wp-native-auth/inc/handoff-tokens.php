@@ -33,7 +33,7 @@ if ( ! defined( 'WP_NATIVE_AUTH_HANDOFF_TOKEN_TTL' ) ) {
  * @return string Plaintext handoff token.
  */
 function wp_native_auth_create_handoff_token( int $user_id ): string {
-	$token      = wp_generate_password( 64, true, true );
+	$token      = wp_native_auth_generate_opaque_token();
 	$token_hash = hash( 'sha256', $token );
 
 	set_transient(
