@@ -35,6 +35,36 @@ if ( ! defined( 'WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS' ) ) {
 }
 
 /**
+ * Generate an opaque random token suitable for HTTP transport.
+ *
+ * 256 random bits, base64url-encoded (no padding) = 43 chars from the
+ * `[A-Za-z0-9_-]` alphabet. This is the standard bearer token alphabet
+ * from RFC 7235 — it survives HTTP headers, URL params, JSON bodies,
+ * command-line args, and shell escaping without any character class
+ * needing escaping.
+ *
+ * Why not `wp_generate_password( 64, true, true )`:
+ *   The "extra special chars" alphabet that wp_generate_password adds
+ *   when both flags are true includes `<`, `>`, `&`, `"`, `'`, and a
+ *   literal space character. Those are hostile to HTTP transport:
+ *     - `sanitize_text_field()` HTML-encodes the first five, mangling
+ *       the token in transit (caused ~45% silent auth failures in
+ *       extrachill.com production before this fix).
+ *     - A literal space embeds in random positions, and `trim()` on
+ *       the receiving side corrupts tokens with edge whitespace.
+ *     - URL-encoding any of these requires extra care from clients.
+ *   Switching to a base64url alphabet sidesteps the entire class.
+ *
+ * Entropy: 32 bytes of CSPRNG (`random_bytes`) = 256 bits, well above
+ * the 128-bit threshold for opaque token unguessability.
+ *
+ * @return string Base64url-encoded random token (43 chars).
+ */
+function wp_native_auth_generate_opaque_token(): string {
+	return rtrim( strtr( base64_encode( random_bytes( 32 ) ), '+/', '-_' ), '=' );
+}
+
+/**
  * Hash a refresh token for storage using SHA-256 hex.
  *
  * The plaintext refresh token is returned to the client exactly once on
@@ -99,7 +129,7 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 		$ttl = WP_NATIVE_AUTH_ACCESS_TOKEN_TTL;
 	}
 
-	$token      = wp_generate_password( 64, true, true );
+	$token      = wp_native_auth_generate_opaque_token();
 	$token_hash = hash( 'sha256', $token );
 	$expires_at = time() + $ttl;
 

@@ -80,7 +80,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 	$expires_ts = $now_ts + $ttl;
 	$expires_at = wp_native_auth_mysql_gmt( $expires_ts );
 
-	$refresh_token = wp_generate_password( 64, true, true );
+	$refresh_token = wp_native_auth_generate_opaque_token();
 	$token_hash    = wp_native_auth_hash_refresh_token( $refresh_token );
 
 	$existing_id = $wpdb->get_var(
@@ -413,7 +413,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 		$ttl = WP_NATIVE_AUTH_REFRESH_TOKEN_TTL;
 	}
 
-	$new_refresh_token = wp_generate_password( 64, true, true );
+	$new_refresh_token = wp_native_auth_generate_opaque_token();
 	$new_token_hash    = wp_native_auth_hash_refresh_token( $new_refresh_token );
 	$new_expires_ts    = $now_ts + $ttl;
 	$new_expires_at    = wp_native_auth_mysql_gmt( $new_expires_ts );

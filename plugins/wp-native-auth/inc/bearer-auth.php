@@ -55,21 +55,37 @@ function wp_native_auth_authenticate_bearer_token( int|false $user_id ): int|fal
  * `REDIRECT_HTTP_AUTHORIZATION` fallback (for setups where Apache strips the
  * Authorization header), and `getallheaders()` as a final fallback.
  *
+ * Sanitization: we deliberately do NOT call `sanitize_text_field()` on the
+ * Authorization header. `sanitize_text_field()` HTML-encodes characters
+ * like `<`, `>`, `&`, `"`, and `'`, which is destructive for opaque
+ * random tokens that may legitimately contain those characters. The
+ * `wp_generate_password(64, true, true)` mint path includes `<`, `>`,
+ * `&`, etc. in its alphabet, so roughly 45% of tokens were silently
+ * failing validation before this fix — every token containing any of
+ * those characters got mangled on extraction and the SHA-256 hash no
+ * longer matched the stored transient.
+ *
+ * Instead we strip only CR/LF (HTTP header-injection protection) and
+ * trim surrounding whitespace. The token alphabet itself is enforced
+ * downstream by `wp_native_auth_validate_access_token()`'s hash lookup
+ * — if a malicious header injected something weird, the hash will
+ * simply not match any stored transient and resolution returns null.
+ *
  * @return string|null The raw token string, or null if no Bearer header is present.
  */
 function wp_native_auth_get_bearer_token(): ?string {
 	$auth_header = null;
 
 	if ( isset( $_SERVER['HTTP_AUTHORIZATION'] ) ) {
-		$auth_header = sanitize_text_field( wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] ) );
+		$auth_header = wp_native_auth_sanitize_authorization_header( wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] ) );
 	} elseif ( isset( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ) {
-		$auth_header = sanitize_text_field( wp_unslash( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) );
+		$auth_header = wp_native_auth_sanitize_authorization_header( wp_unslash( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) );
 	} elseif ( function_exists( 'getallheaders' ) ) {
 		$headers = getallheaders();
 		if ( isset( $headers['Authorization'] ) ) {
-			$auth_header = sanitize_text_field( $headers['Authorization'] );
+			$auth_header = wp_native_auth_sanitize_authorization_header( $headers['Authorization'] );
 		} elseif ( isset( $headers['authorization'] ) ) {
-			$auth_header = sanitize_text_field( $headers['authorization'] );
+			$auth_header = wp_native_auth_sanitize_authorization_header( $headers['authorization'] );
 		}
 	}
 
@@ -84,4 +100,28 @@ function wp_native_auth_get_bearer_token(): ?string {
 	$token = trim( substr( $auth_header, 7 ) );
 
 	return '' === $token ? null : $token;
+}
+
+/**
+ * Narrow sanitizer for the Authorization header.
+ *
+ * Strips CR/LF (HTTP header-injection protection) and null bytes,
+ * then trims the OUTER whitespace of the header value. Does NOT
+ * call `sanitize_text_field()` — see the extraction docblock above
+ * for why that's destructive for opaque bearer tokens.
+ *
+ * The trim is on the header value as a whole (e.g. removing a
+ * trailing space before parsing the Bearer scheme), not on the
+ * token body that follows. The token body is preserved verbatim
+ * after extraction.
+ *
+ * @param mixed $value Raw Authorization header value.
+ * @return string Sanitized header string.
+ */
+function wp_native_auth_sanitize_authorization_header( $value ): string {
+	if ( ! is_string( $value ) ) {
+		return '';
+	}
+
+	return trim( str_replace( array( "\r", "\n", "\0" ), '', $value ) );
 }
