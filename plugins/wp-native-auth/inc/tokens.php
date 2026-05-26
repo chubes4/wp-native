@@ -5,8 +5,9 @@
  * Generic token helpers — no Extra Chill specifics.
  *
  * Lineage: forked from extrachill-users/inc/auth-tokens/tokens.php and
- * generalized. Access tokens are opaque random strings (transient-backed)
- * for v0.1; JWT lands later if/when needed.
+ * generalized. Access tokens are opaque random strings (site-transient-
+ * backed, network-wide on multisite) for v0.1; JWT lands later if/when
+ * needed.
  *
  * @package WPNative\Auth
  */
@@ -105,12 +106,19 @@ function wp_native_auth_mysql_gmt( int $ts ): string {
 }
 
 /**
- * Generate an opaque random access token and persist it as a transient.
+ * Generate an opaque random access token and persist it as a site transient.
  *
- * The transient is keyed by the token's SHA-256 hash so the bearer-auth
- * filter can resolve incoming tokens with a single transient lookup. The
- * stored value contains the user_id and device_id; expiry is enforced by
- * the transient itself.
+ * The site transient is keyed by the token's SHA-256 hash so the bearer-auth
+ * filter can resolve incoming tokens with a single lookup. The stored value
+ * contains the user_id and device_id; expiry is enforced by the transient
+ * itself.
+ *
+ * Site transients (not per-blog transients) are used because access tokens
+ * must resolve on every blog in a multisite, not just the blog that minted
+ * them. `set_site_transient()` writes to `$wpdb->sitemeta` (or the network
+ * cache key when an object cache is active), so tokens are visible network-
+ * wide. On single-site WordPress, site transients behave identically to
+ * regular transients — no behavior change.
  *
  * The TTL is filterable via `wp_native_auth_access_token_ttl`.
  *
@@ -133,7 +141,7 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 	$token_hash = hash( 'sha256', $token );
 	$expires_at = time() + $ttl;
 
-	set_transient(
+	set_site_transient(
 		'wp_native_auth_access_' . $token_hash,
 		array(
 			'user_id'    => $user_id,
@@ -152,8 +160,11 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 /**
  * Validate an access token and return the associated user ID.
  *
- * Reads the transient written by wp_native_auth_generate_access_token().
+ * Reads the site transient written by wp_native_auth_generate_access_token().
  * Returns null if the token is unknown, expired, or malformed.
+ *
+ * Uses `get_site_transient()` so tokens resolve on every blog in a multisite,
+ * not just the blog that minted them. See generator docblock for rationale.
  *
  * @param string $token Plaintext access token from `Authorization: Bearer <token>`.
  * @return int|null User ID or null on failure.
@@ -164,7 +175,7 @@ function wp_native_auth_validate_access_token( string $token ): ?int {
 	}
 
 	$token_hash = hash( 'sha256', $token );
-	$payload    = get_transient( 'wp_native_auth_access_' . $token_hash );
+	$payload    = get_site_transient( 'wp_native_auth_access_' . $token_hash );
 
 	if ( ! is_array( $payload ) || empty( $payload['user_id'] ) ) {
 		return null;
