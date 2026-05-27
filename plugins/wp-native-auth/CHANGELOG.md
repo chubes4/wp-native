@@ -2,6 +2,11 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.1.2] - 2026-05-27
+
+### Fixed
+- fix(wp-native-auth): use site transients for access tokens so they resolve network-wide (closes #47)
+
 ## [0.1.1] - 2026-05-23
 
 ### Fixed
