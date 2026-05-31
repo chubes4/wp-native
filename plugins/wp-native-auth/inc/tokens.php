@@ -16,25 +16,6 @@ declare(strict_types=1);
 
 defined( 'ABSPATH' ) || exit;
 
-/*
- * Constant stubs.
- *
- * The canonical definitions live in the M4.1 plugin bootstrap. We guard
- * with `if ( ! defined( ... ) )` so this file compiles standalone before
- * M4.1 merges and dedupes cleanly afterward.
- */
-if ( ! defined( 'WP_NATIVE_AUTH_ACCESS_TOKEN_TTL' ) ) {
-	define( 'WP_NATIVE_AUTH_ACCESS_TOKEN_TTL', 15 * MINUTE_IN_SECONDS );
-}
-
-if ( ! defined( 'WP_NATIVE_AUTH_REFRESH_TOKEN_TTL' ) ) {
-	define( 'WP_NATIVE_AUTH_REFRESH_TOKEN_TTL', 30 * DAY_IN_SECONDS );
-}
-
-if ( ! defined( 'WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS' ) ) {
-	define( 'WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS', 5 );
-}
-
 /**
  * Generate an opaque random token suitable for HTTP transport.
  *
