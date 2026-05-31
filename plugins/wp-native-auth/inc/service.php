@@ -58,6 +58,14 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 	$refresh_token = wp_native_auth_generate_opaque_token();
 	$token_hash    = wp_native_auth_hash_refresh_token( $refresh_token );
 
+	// A login/register issue starts a fresh token family for this device
+	// session. The family id is preserved across subsequent rotations (see
+	// wp_native_auth_refresh_tokens()) so a reuse anywhere in the lineage
+	// can revoke the whole family. A brand-new login also clears any
+	// prev_token_hash from a superseded session — there is no "previous"
+	// token to replay against a freshly issued one.
+	$token_family = wp_generate_uuid4();
+
 	$existing_id = $wpdb->get_var(
 		$wpdb->prepare(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
@@ -72,6 +80,8 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 		'device_id'          => $device_id,
 		'device_name'        => '' !== $device_name ? $device_name : null,
 		'refresh_token_hash' => $token_hash,
+		'token_family'       => $token_family,
+		'prev_token_hash'    => null,
 		'last_used_at'       => $now,
 		'expires_at'         => $expires_at,
 		'revoked_at'         => null,
@@ -82,7 +92,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 			$table_name,
 			$data,
 			array( 'id' => (int) $existing_id ),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' ),
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ),
 			array( '%d' )
 		);
 	} else {
@@ -90,7 +100,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 		$wpdb->insert(
 			$table_name,
 			$data,
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 	}
 
@@ -271,11 +281,57 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 }
 
 /**
+ * Revoke an entire token family (all rows sharing a `token_family`).
+ *
+ * Used on reuse detection: when a stolen/replayed refresh token is
+ * presented, the whole device-session lineage is burned so the attacker
+ * AND the legitimate client are forced to re-authenticate (RFC 9700
+ * §4.14.2). Given the `(user_id, device_id)` UNIQUE KEY there is normally
+ * exactly one row per family, but revoking by family is correct regardless
+ * of how many rows share it.
+ *
+ * @param string $token_family Family UUID. Empty string is a no-op.
+ * @return int Rows revoked.
+ */
+function wp_native_auth_revoke_token_family( string $token_family ): int {
+	global $wpdb;
+
+	if ( '' === $token_family ) {
+		return 0;
+	}
+
+	$table_name = wp_native_auth_refresh_tokens_table_name();
+	$now        = wp_native_auth_mysql_gmt( time() );
+
+	$revoked = $wpdb->query(
+		$wpdb->prepare(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
+			"UPDATE {$table_name} SET revoked_at = %s WHERE token_family = %s AND revoked_at IS NULL",
+			$now,
+			$token_family
+		)
+	);
+
+	return is_numeric( $revoked ) ? (int) $revoked : 0;
+}
+
+/**
  * Rotate a refresh token: validate the supplied token, invalidate it, and
  * issue a fresh access + refresh pair.
  *
- * Refresh rotation enforces a 5-second per-device rate limit to prevent
- * runaway client retry loops from generating churn in the tokens table.
+ * Security (RFC 9700 §4.14.2):
+ *   - **Atomic rotation** — the hash swap is a single conditional UPDATE
+ *     matching the OLD hash, so two concurrent refreshes of the same token
+ *     cannot both mint a pair (InnoDB makes the single-statement update
+ *     atomic). The loser sees 0 affected rows and is treated as reuse.
+ *   - **Reuse detection** — the immediately-superseded hash is retained in
+ *     `prev_token_hash`. A replayed just-rotated token matches that column
+ *     and triggers FULL FAMILY REVOCATION plus a distinct
+ *     `refresh_token_reused` error, instead of silently succeeding or
+ *     returning a generic invalid-token error.
+ *
+ * Refresh rotation also enforces a 5-second per-device rate limit to
+ * prevent runaway client retry loops from generating churn.
  *
  * @param string $refresh_token Plaintext refresh token.
  * @param string $device_id     Device ID (UUID v4).
@@ -316,17 +372,66 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	$table_name = wp_native_auth_refresh_tokens_table_name();
 	$token_hash = wp_native_auth_hash_refresh_token( $refresh_token );
 
+	// Look up the device's session row. The (user_id, device_id) UNIQUE KEY
+	// means there is at most one row per device, so we fetch by device_id
+	// and compare hashes in PHP — this lets us distinguish a replay of the
+	// just-rotated token (prev_token_hash) from a wholly invalid token.
 	$session = $wpdb->get_row(
 		$wpdb->prepare(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
-			"SELECT * FROM {$table_name} WHERE device_id = %s AND refresh_token_hash = %s LIMIT 1",
-			$device_id,
-			$token_hash
+			"SELECT * FROM {$table_name} WHERE device_id = %s LIMIT 1",
+			$device_id
 		),
 		ARRAY_A
 	);
 
 	if ( empty( $session ) ) {
+		return new WP_Error(
+			'invalid_refresh_token',
+			__( 'Invalid refresh token.', 'wp-native-auth' ),
+			array( 'status' => 401 )
+		);
+	}
+
+	$current_hash = (string) $session['refresh_token_hash'];
+	$prev_hash    = isset( $session['prev_token_hash'] ) ? (string) $session['prev_token_hash'] : '';
+	$token_family = isset( $session['token_family'] ) ? (string) $session['token_family'] : '';
+
+	// Constant-time hash comparison. The presented token must match either
+	// the current hash (→ rotate) or the previous hash (→ reuse). Anything
+	// else is a plain invalid token.
+	$matches_current = hash_equals( $current_hash, $token_hash );
+	$matches_prev    = ( '' !== $prev_hash && hash_equals( $prev_hash, $token_hash ) );
+
+	// REUSE DETECTION: a replay of the immediately-superseded token. Burn
+	// the entire family and surface a distinct error so consumers can alarm.
+	if ( ! $matches_current && $matches_prev ) {
+		wp_native_auth_revoke_token_family( $token_family );
+
+		/**
+		 * Fires when a rotated (superseded) refresh token is replayed.
+		 *
+		 * Signals a likely stolen-token replay (RFC 9700 §4.14.2). The
+		 * entire token family has already been revoked when this fires.
+		 * Consumers (e.g. a security-logging plugin) can alarm, email the
+		 * user, or rate-limit the source. This plugin stays generic and
+		 * knows nothing about who consumes the signal.
+		 *
+		 * @param int    $user_id      User whose token family was revoked.
+		 * @param string $device_id    Device ID the replay targeted.
+		 * @param string $token_family Revoked family UUID.
+		 */
+		do_action( 'wp_native_auth_refresh_token_reuse_detected', (int) $session['user_id'], $device_id, $token_family );
+
+		return new WP_Error(
+			'refresh_token_reused',
+			__( 'Refresh token reuse detected. All sessions for this device have been revoked.', 'wp-native-auth' ),
+			array( 'status' => 401 )
+		);
+	}
+
+	// Neither current nor previous hash — a wholly invalid token.
+	if ( ! $matches_current ) {
 		return new WP_Error(
 			'invalid_refresh_token',
 			__( 'Invalid refresh token.', 'wp-native-auth' ),
@@ -393,17 +498,25 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	$new_expires_ts    = $now_ts + $ttl;
 	$new_expires_at    = wp_native_auth_mysql_gmt( $new_expires_ts );
 
-	$updated = $wpdb->update(
-		$table_name,
-		array(
-			'refresh_token_hash' => $new_token_hash,
-			'last_used_at'       => $now,
-			'expires_at'         => $new_expires_at,
-			'revoked_at'         => null,
-		),
-		array( 'id' => (int) $session['id'] ),
-		array( '%s', '%s', '%s', '%s' ),
-		array( '%d' )
+	// ATOMIC ROTATION: a single conditional UPDATE that only succeeds if the
+	// row STILL holds the old hash. InnoDB makes this single statement
+	// atomic, so of two concurrent refreshes of the same token exactly one
+	// can win — the other affects 0 rows. The family is preserved across
+	// the rotation; the just-superseded hash is parked in prev_token_hash
+	// so a replay of it is detectable on the next call.
+	$updated = $wpdb->query(
+		$wpdb->prepare(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
+			"UPDATE {$table_name}
+			 SET refresh_token_hash = %s, prev_token_hash = %s, last_used_at = %s, expires_at = %s, revoked_at = NULL
+			 WHERE id = %d AND refresh_token_hash = %s AND revoked_at IS NULL",
+			$new_token_hash,
+			$current_hash,
+			$now,
+			$new_expires_at,
+			(int) $session['id'],
+			$current_hash
+		)
 	);
 
 	if ( false === $updated ) {
@@ -411,6 +524,23 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 			'refresh_update_failed',
 			__( 'Failed to rotate refresh token.', 'wp-native-auth' ),
 			array( 'status' => 500 )
+		);
+	}
+
+	// Zero rows affected means the row no longer held the old hash (a
+	// concurrent or replayed request already rotated it). That IS reuse of
+	// this token — burn the family and surface the reuse error rather than
+	// double-minting a second valid pair from the same old token.
+	if ( 0 === (int) $updated ) {
+		wp_native_auth_revoke_token_family( $token_family );
+
+		/** This action is documented above (reuse-detection branch). */
+		do_action( 'wp_native_auth_refresh_token_reuse_detected', $user_id, $device_id, $token_family );
+
+		return new WP_Error(
+			'refresh_token_reused',
+			__( 'Refresh token reuse detected. All sessions for this device have been revoked.', 'wp-native-auth' ),
+			array( 'status' => 401 )
 		);
 	}
 

@@ -25,6 +25,8 @@ CREATE TABLE {$table_name} (
   device_id char(36) NOT NULL,
   device_name varchar(191) NULL,
   refresh_token_hash char(64) NOT NULL,
+  token_family char(36) NULL,
+  prev_token_hash char(64) NULL,
   created_at datetime NOT NULL,
   last_used_at datetime NULL,
   expires_at datetime NOT NULL,
@@ -32,11 +34,42 @@ CREATE TABLE {$table_name} (
   PRIMARY KEY  (id),
   UNIQUE KEY user_device (user_id, device_id),
   KEY user_id (user_id),
+  KEY token_family (token_family),
   KEY expires_at (expires_at)
 ) {$charset_collate};
 ```
 
 Hash algorithm: `hash( 'sha256', $token, false )` — 64 hex chars. Plaintext refresh tokens are returned to the client exactly once (issue + rotate) and never persisted.
+
+### Reuse-detection columns (v2)
+
+- **`token_family`** (`char(36)` NULL) — a UUID v4 set at login/register issue and **preserved across every rotation** of that device session. Reuse detection revokes the whole family. NULL only for legacy rows pending backfill.
+- **`prev_token_hash`** (`char(64)` NULL) — SHA-256 hex of the immediately-superseded token. On refresh, a presented token matching this column (and not the current hash) is a **replay → reuse detection**. Reset to NULL on a fresh login/register issue.
+
+### Schema version &amp; migration
+
+The installed table version lives in the network option
+`wp_native_auth_schema_version` (`WP_NATIVE_AUTH_SCHEMA_VERSION_OPTION`),
+compared against the `WP_NATIVE_AUTH_SCHEMA_VERSION` constant in `inc/db.php`:
+
+- **v1** — original shape (no `token_family` / `prev_token_hash`).
+- **v2** — refresh-token reuse detection (#55): adds `token_family` + `prev_token_hash`.
+
+`wp_native_auth_maybe_upgrade_schema()` runs on `admin_init`; when the stored
+version is behind it re-runs `dbDelta()` (purely additive — the new columns are
+NULL-able, no existing data is rewritten) and backfills a fresh `token_family`
+UUID per legacy row via `wp_native_auth_backfill_token_family()`. **Active
+refresh tokens keep working through the migration — no user is logged out.** A
+legacy row has no `prev_token_hash`, so reuse of its *pre-migration* token
+cannot be detected until it rotates once post-migration; that is the only gap
+and it is acceptable.
+
+### Lifecycle
+
+1. **Login/Register** — `wp_native_auth_issue_refresh_token()` writes a fresh hash, a **fresh `token_family`**, and `prev_token_hash = NULL`.
+2. **Refresh** — `wp_native_auth_refresh_tokens()` rotates via an **atomic conditional UPDATE** that matches the old hash, **preserves `token_family`**, parks the old hash in `prev_token_hash`, and extends `expires_at`. 0 rows affected (a concurrent/replayed rotation already won) is treated as reuse.
+3. **Reuse detected** — a token matching `prev_token_hash` (or the 0-rows-affected race) revokes the **entire `token_family`** (`wp_native_auth_revoke_token_family()`), fires `wp_native_auth_refresh_token_reuse_detected`, and returns `refresh_token_reused` (401).
+4. **Logout/Revoke** — `wp_native_auth_revoke_refresh_token()` sets `revoked_at`.
 
 ## Common types referenced below
 
@@ -193,6 +226,7 @@ Same as `wp-native/auth-login` output (TokenPair + User).
 | Code | HTTP | Meaning |
 |---|---|---|
 | `invalid_refresh_token` | 401 | Token not found, hash mismatch, or revoked |
+| `refresh_token_reused` | 401 | A previously-rotated (superseded) token was replayed. The **entire token family is revoked** — the client must re-authenticate. Distinct from `invalid_refresh_token`: treat as a hard logout, not a retry. |
 | `refresh_token_expired` | 401 | Token expired (past 30 days without use) |
 | `invalid_device_id` | 400 | `device_id` not a valid UUID v4 |
 | `rate_limited` | 429 | More than one refresh per 5 seconds for the same device |
@@ -544,6 +578,12 @@ do_action( 'wp_native_auth_after_refresh', $user_id, $device_id, $token_pair );
 
 // Fired after a logout / revoke.
 do_action( 'wp_native_auth_after_logout', $user_id, $device_id );
+
+// Fired when a rotated (superseded) refresh token is replayed — likely a
+// stolen-token replay (RFC 9700 §4.14.2). The entire token family has
+// already been revoked when this fires. Generic seam for consumers to
+// alarm/log; this plugin knows nothing about who consumes it.
+do_action( 'wp_native_auth_refresh_token_reuse_detected', $user_id, $device_id, $token_family );
 ```
 
 extrachill-users would consume these to enforce community-blog membership, run Turnstile, integrate Two Factor, etc. — without wp-native-auth knowing any of that exists.
