@@ -23,31 +23,6 @@ defined( 'ABSPATH' ) || exit;
 require_once __DIR__ . '/tokens.php';
 
 /**
- * Resolve the refresh token table name.
- *
- * The canonical helper lives in the M4.1 plugin bootstrap. We declare a
- * fallback inside an `if ( ! function_exists( ... ) )` guard so this file
- * compiles standalone before M4.1 merges. M4.1's definition takes
- * precedence at runtime.
- */
-if ( ! function_exists( 'wp_native_auth_refresh_token_table_name' ) ) {
-	/**
-	 * Network-wide refresh token table name.
-	 *
-	 * Uses `$wpdb->base_prefix` (not `$wpdb->prefix`) so the table is shared
-	 * across every blog in a multisite install — token auth is a
-	 * network-wide concern.
-	 *
-	 * @return string Fully-qualified table name.
-	 */
-	function wp_native_auth_refresh_token_table_name(): string {
-		global $wpdb;
-
-		return $wpdb->base_prefix . 'wp_native_auth_refresh_tokens';
-	}
-}
-
-/**
  * Issue (or update on conflict) a refresh token for a user/device pair.
  *
  * The `(user_id, device_id)` pair is unique in the schema. Re-issuing
@@ -64,7 +39,7 @@ if ( ! function_exists( 'wp_native_auth_refresh_token_table_name' ) ) {
 function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '' ): array {
 	global $wpdb;
 
-	$table_name = wp_native_auth_refresh_token_table_name();
+	$table_name = wp_native_auth_refresh_tokens_table_name();
 
 	$ttl = (int) apply_filters(
 		'wp_native_auth_refresh_token_ttl',
@@ -338,7 +313,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	}
 	set_transient( $rate_key, time(), MINUTE_IN_SECONDS );
 
-	$table_name = wp_native_auth_refresh_token_table_name();
+	$table_name = wp_native_auth_refresh_tokens_table_name();
 	$token_hash = wp_native_auth_hash_refresh_token( $refresh_token );
 
 	$session = $wpdb->get_row(
@@ -484,7 +459,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 function wp_native_auth_revoke_refresh_token( int $user_id, string $device_id ): bool {
 	global $wpdb;
 
-	$table_name = wp_native_auth_refresh_token_table_name();
+	$table_name = wp_native_auth_refresh_tokens_table_name();
 	$now        = wp_native_auth_mysql_gmt( time() );
 
 	$updated = $wpdb->update(
@@ -528,7 +503,7 @@ function wp_native_auth_revoke_refresh_token( int $user_id, string $device_id ):
 function wp_native_auth_list_user_sessions( int $user_id, string $current_device_id = '' ): array {
 	global $wpdb;
 
-	$table_name = wp_native_auth_refresh_token_table_name();
+	$table_name = wp_native_auth_refresh_tokens_table_name();
 	$now        = wp_native_auth_mysql_gmt( time() );
 
 	$rows = $wpdb->get_results(
