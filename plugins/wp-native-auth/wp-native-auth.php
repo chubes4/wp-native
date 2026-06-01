@@ -68,3 +68,10 @@ require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/abilities.php';
  * Activation: install the network-wide refresh tokens table.
  */
 register_activation_hook( __FILE__, 'wp_native_auth_install_refresh_tokens_table' );
+
+/**
+ * Lazy schema upgrade: pick up additive column migrations on existing
+ * installs without requiring a plugin reactivation. Backward-compatible —
+ * never logs active users out.
+ */
+add_action( 'admin_init', 'wp_native_auth_maybe_upgrade_schema' );
