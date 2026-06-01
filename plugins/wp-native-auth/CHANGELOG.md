@@ -2,6 +2,14 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.1.3] - 2026-06-01
+
+### Changed
+- remove stale M4.1 transitional scaffolding in wp-native-auth
+
+### Fixed
+- refresh-token reuse detection + atomic rotation (closes #55)
+
 ## [0.1.2] - 2026-05-27
 
 ### Fixed
