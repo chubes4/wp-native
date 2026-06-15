@@ -2,6 +2,11 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.1.4] - 2026-06-15
+
+### Fixed
+- guard ability category registration against double-fire _doing_it_wrong notice
+
 ## [0.1.3] - 2026-06-01
 
 ### Changed
