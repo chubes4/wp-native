@@ -38,6 +38,13 @@ if ( ! function_exists( 'wp_native_auth_register_ability_category' ) ) {
 			return;
 		}
 
+		// The wp_abilities_api_categories_init action can fire more than once per
+		// request (notably on multisite), so guard against re-registering the
+		// category and tripping core's "already registered" _doing_it_wrong notice.
+		if ( function_exists( 'wp_has_ability_category' ) && wp_has_ability_category( WP_NATIVE_AUTH_ABILITY_CATEGORY ) ) {
+			return;
+		}
+
 		wp_register_ability_category(
 			WP_NATIVE_AUTH_ABILITY_CATEGORY,
 			array(
