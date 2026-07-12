@@ -1,6 +1,6 @@
 {
   "name": "wp-native-client",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Universal WordPress client built on the Abilities API. Discovery + execution. Works in WordPress blocks, React Native, and Node — one client, three transports, one ability surface.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
