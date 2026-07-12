@@ -29,12 +29,10 @@
  */
 
 import type { Transport } from './transports/types';
-import { ApiError } from './transports/fetch';
 import { AbilityCatalog } from './abilities/catalog';
-import { discoverAbilities } from './abilities/discovery';
+import { discoverAbilities, encodeAbilityName, fetchAbility } from './abilities/discovery';
 import type {
   AbilityDescriptor,
-  AbilityExecutionResponse,
 } from './abilities/types';
 
 const RUN_PATH_PREFIX = 'wp-abilities/v1/abilities';
@@ -58,6 +56,7 @@ export class WPNativeClient {
   private readonly transport: Transport;
   private readonly config: Required<WPNativeClientConfig>;
   private _catalog: AbilityCatalog | null = null;
+  private readonly descriptors = new Map<string, AbilityDescriptor>();
 
   constructor(transport: Transport, config: WPNativeClientConfig = {}) {
     this.transport = transport;
@@ -83,6 +82,9 @@ export class WPNativeClient {
     }
     const catalog = await discoverAbilities(this.transport, filter);
     this._catalog = catalog;
+    for (const ability of catalog.all()) {
+      this.descriptors.set(ability.name, ability);
+    }
     return catalog;
   }
 
@@ -119,11 +121,8 @@ export class WPNativeClient {
    * Execute an ability by name.
    *
    * The ability is looked up in the catalog (when validateAbilityNames is
-   * enabled), then POSTed to /wp-abilities/v1/abilities/{name}/run with
-   * the given input as the request body's `input` field.
-   *
-   * The response shape `{ result: TResult }` is unwrapped — callers receive
-   * the result value directly.
+   * enabled), then sent to /wp-abilities/v1/abilities/{name}/run using the
+   * HTTP method required by the ability annotations.
    *
    * Throws:
    *   - Error    if the ability is not in the catalog (and validation enabled)
@@ -143,7 +142,13 @@ export class WPNativeClient {
       }
     }
 
-    return this.executeUnchecked<TResult, TInput>(name, input);
+    let descriptor = this._catalog?.get(name) ?? this.descriptors.get(name);
+    if (!descriptor) {
+      descriptor = await fetchAbility(this.transport, name);
+      this.descriptors.set(name, descriptor);
+    }
+
+    return this.executeDescriptor<TResult, TInput>(descriptor, input);
   }
 
   /**
@@ -158,27 +163,41 @@ export class WPNativeClient {
     name: string,
     input?: TInput,
   ): Promise<TResult> {
-    const path = `${RUN_PATH_PREFIX}/${encodeURIComponent(name)}/run`;
+    const descriptor = await fetchAbility(this.transport, name);
+    this.descriptors.set(name, descriptor);
+    return this.executeDescriptor<TResult, TInput>(descriptor, input);
+  }
+
+  private async executeDescriptor<TResult, TInput>(
+    descriptor: AbilityDescriptor,
+    input?: TInput,
+  ): Promise<TResult> {
+    const annotations = descriptor.meta?.annotations;
+    const annotationMap = annotations && typeof annotations === 'object' ? annotations : {};
+    const method = annotationMap.readonly
+      ? 'GET'
+      : annotationMap.destructive && annotationMap.idempotent
+        ? 'DELETE'
+        : 'POST';
+    let path = `${RUN_PATH_PREFIX}/${encodeAbilityName(descriptor.name)}/run`;
     const body: { input: TInput | null } = {
       input: input === undefined ? null : input,
     };
 
-    const response = await this.transport.request<AbilityExecutionResponse<TResult>>({
-      path,
-      method: 'POST',
-      body: body as Record<string, unknown>,
-    });
-
-    if (!response || typeof response !== 'object' || !('result' in response)) {
-      throw new ApiError(
-        `WPNativeClient: malformed ability response for "${name}". ` +
-          `Expected { result: ... }.`,
-        'malformed_ability_response',
-        500,
-      );
+    if (method !== 'POST') {
+      const query = new URLSearchParams();
+      appendQueryValue(query, 'input', body.input);
+      const queryString = query.toString();
+      if (queryString) {
+        path += `?${queryString}`;
+      }
     }
 
-    return response.result;
+    return this.transport.request<TResult>({
+      path,
+      method,
+      ...(method === 'POST' ? { body: body as Record<string, unknown> } : {}),
+    });
   }
 
   /**
@@ -188,4 +207,28 @@ export class WPNativeClient {
   describe(name: string): AbilityDescriptor | undefined {
     return this._catalog?.get(name);
   }
+}
+
+function appendQueryValue(
+  query: URLSearchParams,
+  key: string,
+  value: unknown,
+): void {
+  if (value === null || value === undefined) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => appendQueryValue(query, `${key}[${index}]`, item));
+    return;
+  }
+
+  if (typeof value === 'object') {
+    Object.entries(value).forEach(([childKey, childValue]) => {
+      appendQueryValue(query, `${key}[${childKey}]`, childValue);
+    });
+    return;
+  }
+
+  query.append(key, String(value));
 }

@@ -52,9 +52,16 @@ export async function fetchAbility(
   name: string,
 ): Promise<AbilityDescriptor> {
   return transport.request<AbilityDescriptor>({
-    path: `${ABILITIES_PATH}/${encodeURIComponent(name)}`,
+    path: `${ABILITIES_PATH}/${encodeAbilityName(name)}`,
     method: 'GET',
   });
+}
+
+/**
+ * Encode an ability name without escaping its namespace separator.
+ */
+export function encodeAbilityName(name: string): string {
+  return name.split('/').map(encodeURIComponent).join('/');
 }
 
 /**

@@ -4,7 +4,7 @@
  * Mirrors the response shapes documented at:
  *   GET /wp-abilities/v1/abilities
  *   GET /wp-abilities/v1/abilities/{name}
- *   POST /wp-abilities/v1/abilities/{name}/run
+ *   GET|POST|DELETE /wp-abilities/v1/abilities/{name}/run
  *
  * These types describe the wire format. They are intentionally permissive
  * about ability-specific input/output (modeled as `unknown`) because the
@@ -38,7 +38,7 @@ export interface AbilityDescriptor {
 
   /**
    * JSON Schema describing the shape of the `input` argument expected by
-   * POST /abilities/{name}/run. May be an empty object for nullary abilities.
+   * /abilities/{name}/run. May be an empty object for nullary abilities.
    */
   input_schema: Record<string, unknown>;
 
@@ -66,10 +66,10 @@ export interface AbilityCategory {
 }
 
 /**
- * Successful response from POST /wp-abilities/v1/abilities/{name}/run.
+ * Legacy wrapped execution response type retained for source compatibility.
+ * WordPress currently returns the ability result directly from `/run`.
  *
- * The actual `result` shape is ability-specific; consumers narrow with
- * a type parameter at the `client.execute<TResult>()` call site.
+ * @deprecated Use the result type passed to `client.execute<TResult>()`.
  */
 export interface AbilityExecutionResponse<TResult = unknown> {
   result: TResult;
