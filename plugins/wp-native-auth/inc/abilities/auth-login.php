@@ -93,10 +93,16 @@ if ( ! function_exists( 'wp_native_auth_register_login_ability' ) ) {
 							'required'             => array( 'challenge_required', 'challenge', 'continuation_token', 'continuation_expires_at' ),
 							'additionalProperties' => false,
 							'properties'           => array(
-								'challenge_required'      => array( 'type' => 'boolean', 'enum' => array( true ) ),
+								'challenge_required'      => array(
+									'type' => 'boolean',
+									'enum' => array( true ),
+								),
 								'challenge'               => array( 'type' => 'object' ),
 								'continuation_token'      => array( 'type' => 'string' ),
-								'continuation_expires_at' => array( 'type' => 'string', 'format' => 'date-time' ),
+								'continuation_expires_at' => array(
+									'type'   => 'string',
+									'format' => 'date-time',
+								),
 							),
 						),
 					),

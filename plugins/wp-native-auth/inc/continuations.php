@@ -203,7 +203,14 @@ function wp_native_auth_continue_login( string $token, string $device_id, array 
 		return $pre_login;
 	}
 
-	$deleted = $wpdb->delete( $table, array( 'id' => (int) $row['id'], 'token_hash' => $token_hash ), array( '%d', '%s' ) );
+	$deleted = $wpdb->delete(
+		$table,
+		array(
+			'id'         => (int) $row['id'],
+			'token_hash' => $token_hash,
+		),
+		array( '%d', '%s' )
+	);
 	if ( 1 !== $deleted ) {
 		return new WP_Error( 'invalid_continuation', __( 'The authentication continuation has already been used.', 'wp-native-auth' ), array( 'status' => 401 ) );
 	}

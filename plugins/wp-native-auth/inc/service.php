@@ -269,7 +269,7 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 	}
 
 	if ( null !== $challenge ) {
-		if ( ! is_array( $challenge ) || empty( $challenge['type'] ) || ! is_string( $challenge['type'] ) ) {
+		if ( 'array' !== gettype( $challenge ) || empty( $challenge['type'] ) || ! is_string( $challenge['type'] ) ) {
 			return new WP_Error( 'invalid_challenge_contract', __( 'Authentication policy returned an invalid challenge.', 'wp-native-auth' ), array( 'status' => 500 ) );
 		}
 

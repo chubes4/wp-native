@@ -26,7 +26,11 @@ function wp_native_auth_register_continue_login_ability(): void {
 				'required'             => array( 'continuation_token', 'device_id', 'challenge_response' ),
 				'additionalProperties' => false,
 				'properties'           => array(
-					'continuation_token' => array( 'type' => 'string', 'minLength' => 1, 'maxLength' => 512 ),
+					'continuation_token' => array(
+						'type'      => 'string',
+						'minLength' => 1,
+						'maxLength' => 512,
+					),
 					'device_id'          => array(
 						'type'    => 'string',
 						'pattern' => '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
@@ -40,9 +44,15 @@ function wp_native_auth_register_continue_login_ability(): void {
 				'additionalProperties' => false,
 				'properties'           => array(
 					'access_token'       => array( 'type' => 'string' ),
-					'access_expires_at'  => array( 'type' => 'string', 'format' => 'date-time' ),
+					'access_expires_at'  => array(
+						'type'   => 'string',
+						'format' => 'date-time',
+					),
 					'refresh_token'      => array( 'type' => 'string' ),
-					'refresh_expires_at' => array( 'type' => 'string', 'format' => 'date-time' ),
+					'refresh_expires_at' => array(
+						'type'   => 'string',
+						'format' => 'date-time',
+					),
 					'user'               => array( 'type' => 'object' ),
 				),
 			),
