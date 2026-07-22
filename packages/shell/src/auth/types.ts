@@ -27,6 +27,14 @@ export interface AuthMeUser {
   registered_at: string;
 }
 
+/** Public descriptor and opaque bearer for a pending login challenge. */
+export interface AuthChallengeRequirement {
+  challenge_required: true;
+  challenge: { type: string; [key: string]: unknown };
+  continuation_token: string;
+  continuation_expires_at: string;
+}
+
 // ─── Storage ─────────────────────────────────────────────────────────────────
 
 /**
@@ -91,7 +99,13 @@ export interface AuthActions {
    * Log in with email/username and password.
    * Calls `wp-native/auth-login`, stores tokens, runs discover(), sets user.
    */
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<AuthChallengeRequirement | void>;
+
+  /** Verify a pending challenge and complete its device-bound login. */
+  continueLogin: (
+    continuationToken: string,
+    challengeResponse: Record<string, unknown>,
+  ) => Promise<void>;
 
   /**
    * Register a new user account with email and password.

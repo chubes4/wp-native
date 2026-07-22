@@ -69,21 +69,36 @@ if ( ! function_exists( 'wp_native_auth_register_login_ability' ) ) {
 					),
 				),
 				'output_schema'       => array(
-					'type'                 => 'object',
-					'required'             => array( 'access_token', 'access_expires_at', 'refresh_token', 'refresh_expires_at', 'user' ),
-					'additionalProperties' => false,
-					'properties'           => array(
-						'access_token'       => array( 'type' => 'string' ),
-						'access_expires_at'  => array(
-							'type'   => 'string',
-							'format' => 'date-time',
+					'oneOf' => array(
+						array(
+							'type'                 => 'object',
+							'required'             => array( 'access_token', 'access_expires_at', 'refresh_token', 'refresh_expires_at', 'user' ),
+							'additionalProperties' => false,
+							'properties'           => array(
+								'access_token'       => array( 'type' => 'string' ),
+								'access_expires_at'  => array(
+									'type'   => 'string',
+									'format' => 'date-time',
+								),
+								'refresh_token'      => array( 'type' => 'string' ),
+								'refresh_expires_at' => array(
+									'type'   => 'string',
+									'format' => 'date-time',
+								),
+								'user'               => array( 'type' => 'object' ),
+							),
 						),
-						'refresh_token'      => array( 'type' => 'string' ),
-						'refresh_expires_at' => array(
-							'type'   => 'string',
-							'format' => 'date-time',
+						array(
+							'type'                 => 'object',
+							'required'             => array( 'challenge_required', 'challenge', 'continuation_token', 'continuation_expires_at' ),
+							'additionalProperties' => false,
+							'properties'           => array(
+								'challenge_required'      => array( 'type' => 'boolean', 'enum' => array( true ) ),
+								'challenge'               => array( 'type' => 'object' ),
+								'continuation_token'      => array( 'type' => 'string' ),
+								'continuation_expires_at' => array( 'type' => 'string', 'format' => 'date-time' ),
+							),
 						),
-						'user'               => array( 'type' => 'object' ),
 					),
 				),
 				'permission_callback' => '__return_true',

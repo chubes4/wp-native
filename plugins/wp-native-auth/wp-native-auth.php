@@ -39,11 +39,18 @@ define( 'WP_NATIVE_AUTH_REFRESH_TOKEN_TTL', 30 * DAY_IN_SECONDS );
 // Per-device refresh rate limit (seconds between successful refreshes).
 define( 'WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS', 5 );
 
+// Pending authentication challenge lifetime and verification-attempt ceiling.
+define( 'WP_NATIVE_AUTH_CONTINUATION_TTL', 5 * MINUTE_IN_SECONDS );
+define( 'WP_NATIVE_AUTH_CONTINUATION_MAX_ATTEMPTS', 5 );
+
 // DB layer (refresh tokens table installer).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/db.php';
 
 // Token primitives (hashing, access-token generation/validation, helpers).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/tokens.php';
+
+// Opaque, single-use authentication challenge continuations.
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/continuations.php';
 
 // External-service token signing (HMAC-SHA256 signed tokens for delegating
 // scoped access to external services that share an HMAC secret).

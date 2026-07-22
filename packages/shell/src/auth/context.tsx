@@ -23,6 +23,7 @@ import type {
   AuthActions,
   AuthMeUser,
   AuthProviderProps,
+  AuthChallengeRequirement,
 } from './types';
 import { buildAuthStack } from './transport';
 import type { AuthStack } from './transport';
@@ -36,6 +37,8 @@ interface LoginResponse {
   refresh_expires_at: string;
   user: AuthMeUser;
 }
+
+type LoginResult = LoginResponse | AuthChallengeRequirement;
 
 // ─── Me response shape (from wp-native/auth-me output schema) ────────────────
 
@@ -54,6 +57,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  */
 function parseExpiresAt(expiresAt: string): number {
   return Math.floor(new Date(expiresAt).getTime() / 1000);
+}
+
+function isChallengeRequirement(result: LoginResult): result is AuthChallengeRequirement {
+  return 'challenge_required' in result && result.challenge_required === true;
 }
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -154,10 +161,14 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
     const deviceId = await getDeviceId();
 
     // Login is pre-discovery — use executeUnchecked.
-    const response = await client.executeUnchecked<LoginResponse>(
+    const response = await client.executeUnchecked<LoginResult>(
       'wp-native/auth-login',
       { identifier, password, device_id: deviceId },
     );
+
+    if (isChallengeRequirement(response)) {
+      return response;
+    }
 
     // Persist tokens via the transport.
     await (stack.transport as AuthFetchTransport).setTokens({
@@ -169,6 +180,37 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
     // Discover abilities now that we're authenticated.
     await client.discover();
 
+    setState({
+      user: response.user,
+      isLoading: false,
+      isAuthenticated: true,
+      sessionExpired: false,
+    });
+
+    return undefined;
+  }, [stack]);
+
+  const continueLogin = useCallback(async (
+    continuationToken: string,
+    challengeResponse: Record<string, unknown>,
+  ) => {
+    const { client, getDeviceId } = stack;
+    const deviceId = await getDeviceId();
+    const response = await client.executeUnchecked<LoginResponse>(
+      'wp-native/auth-continue-login',
+      {
+        continuation_token: continuationToken,
+        device_id: deviceId,
+        challenge_response: challengeResponse,
+      },
+    );
+
+    await (stack.transport as AuthFetchTransport).setTokens({
+      accessToken: response.access_token,
+      refreshToken: response.refresh_token,
+      accessExpiresAt: parseExpiresAt(response.access_expires_at),
+    });
+    await client.discover();
     setState({
       user: response.user,
       isLoading: false,
@@ -267,6 +309,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
   const value: AuthContextValue = {
     ...state,
     login,
+    continueLogin,
     register,
     logout,
     refreshSession,
@@ -287,7 +330,7 @@ export function AuthProvider({ api, storage, onAuthFailure, children }: AuthProv
  * Access auth state and actions from within an AuthProvider.
  *
  * Returns `AuthState & AuthActions` — user, isLoading, isAuthenticated,
- * sessionExpired, login, register, logout, refreshSession,
+ * sessionExpired, login, continueLogin, register, logout, refreshSession,
  * clearSessionExpired, and the underlying WPNativeClient via `client`.
  */
 export function useAuth(): AuthState & AuthActions {

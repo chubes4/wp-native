@@ -19,6 +19,7 @@ if ( ! defined( 'WP_NATIVE_AUTH_ABILITY_CATEGORY' ) ) {
 }
 
 require_once __DIR__ . '/abilities/auth-login.php';
+require_once __DIR__ . '/abilities/auth-continue-login.php';
 require_once __DIR__ . '/abilities/auth-refresh.php';
 require_once __DIR__ . '/abilities/auth-logout.php';
 require_once __DIR__ . '/abilities/auth-me.php';
@@ -67,6 +68,7 @@ if ( ! function_exists( 'wp_native_auth_register_abilities' ) ) {
 		}
 
 		wp_native_auth_register_login_ability();
+		wp_native_auth_register_continue_login_ability();
 		wp_native_auth_register_refresh_ability();
 		wp_native_auth_register_logout_ability();
 		wp_native_auth_register_me_ability();

@@ -17,9 +17,10 @@ Token-based authentication for WordPress, built for native app consumers.
 ## Architecture
 
 - Per-device refresh tokens stored in custom table
+- Provider-agnostic policy challenges resume through short-lived, opaque, single-use continuations
 - Refresh rotation: each `/refresh` issues a new refresh token and invalidates the prior one immediately
 - Access TTL: 15 minutes
 - Refresh TTL: 30 days (sliding — extended on every refresh)
 - `device_id` required (UUID v4) on all session-creating endpoints
 
-Lineage: forked from the token auth subsystem of [`extrachill-users`](https://github.com/Extra-Chill/extrachill-users), generalized.
+The implementation is generic and exposes policy concerns through extension hooks.

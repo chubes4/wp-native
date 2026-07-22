@@ -2,10 +2,7 @@
 /**
  * Token primitives for wp-native-auth.
  *
- * Generic token helpers — no Extra Chill specifics.
- *
- * Lineage: forked from extrachill-users/inc/auth-tokens/tokens.php and
- * generalized. Access tokens are opaque random strings (site-transient-
+ * Generic token helpers. Access tokens are opaque random strings (site-transient-
  * backed, network-wide on multisite) for v0.1; JWT lands later if/when
  * needed.
  *
@@ -31,7 +28,7 @@ defined( 'ABSPATH' ) || exit;
  *   literal space character. Those are hostile to HTTP transport:
  *     - `sanitize_text_field()` HTML-encodes the first five, mangling
  *       the token in transit (caused ~45% silent auth failures in
- *       extrachill.com production before this fix).
+ *       production before this fix).
  *     - A literal space embeds in random positions, and `trim()` on
  *       the receiving side corrupts tokens with edge whitespace.
  *     - URL-encoding any of these requires extra care from clients.

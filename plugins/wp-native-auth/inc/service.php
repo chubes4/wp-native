@@ -6,12 +6,9 @@
  * login and registration flows that wire those primitives together with
  * WordPress's native authentication.
  *
- * Lineage: forked from extrachill-users/inc/auth-tokens/service.php and
- * generalized. Anything Extra Chill specific (community-blog membership,
- * Turnstile, user blocking, profile URL decoration) has been removed and
- * is exposed via the extension hooks documented in SCHEMAS.md so plugins
- * like extrachill-users can layer that policy without this plugin
- * knowing about them.
+ * Site authentication and account policy are exposed through the extension
+ * hooks documented in SCHEMAS.md so this generic layer does not know about
+ * integration implementations.
  *
  * @package WPNative\Auth
  */
@@ -115,8 +112,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
  *
  * The shape is fixed by SCHEMAS.md (id, username, display_name, email,
  * avatar_url, roles, registered_at). Consumers can decorate the array via
- * the `wp_native_auth_user_payload` filter — that's where extrachill-users
- * adds `profile_url`, etc.
+ * the `wp_native_auth_user_payload` filter.
  *
  * @param WP_User             $user    WordPress user.
  * @param array<string,mixed> $context Optional. Additional context (e.g. device_id, reason).
@@ -159,14 +155,14 @@ function wp_native_auth_build_user_payload( WP_User $user, array $context = arra
  * Flow:
  *   1. Validate `device_id` is a UUID v4.
  *   2. Apply `wp_native_auth_pre_authenticate` filter — short-circuits
- *      before WP touches the password (Turnstile, IP block, etc.).
+ *      before WP touches the password (request policy, IP block, etc.).
  *   3. Call `wp_authenticate()` for username/email + password check.
  *   4. Apply `wp_native_auth_pre_login` filter on the resolved user —
- *      lets extensions block specific accounts (suspended, not a member
- *      of an EC blog, etc.).
- *   5. Optionally set the WP browsing cookie for same-origin web clients.
- *   6. Issue an access token + refresh token bound to the device.
- *   7. Fire `wp_native_auth_after_login`.
+ *      lets extensions block specific accounts.
+ *   5. Let authentication policy require a resumable challenge.
+ *   6. Optionally set the WP browsing cookie for same-origin web clients.
+ *   7. Issue an access token + refresh token bound to the device.
+ *   8. Fire `wp_native_auth_after_login`.
  *
  * @param string               $identifier Username or email.
  * @param string               $password   Plaintext password.
@@ -194,12 +190,13 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 	$context = array(
 		'identifier' => $identifier,
 		'device_id'  => $device_id,
+		'client_id'  => wp_native_auth_get_client_id(),
 	);
 
 	/**
 	 * Filter to short-circuit authentication before password check.
 	 *
-	 * Return a WP_Error to block (e.g. Turnstile failure, IP block).
+	 * Return a WP_Error to block (e.g. request policy failure, IP block).
 	 *
 	 * @param null|WP_Error $blocked    Null to continue, WP_Error to block.
 	 * @param string        $identifier Username or email being authenticated.
@@ -241,6 +238,69 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 	if ( is_wp_error( $pre_login ) ) {
 		return $pre_login;
 	}
+
+	$pending_request = array(
+		'pending_request_id' => wp_generate_uuid4(),
+		'user_id'            => (int) $user->ID,
+		'device_id'          => $device_id,
+		'client_id'          => $context['client_id'],
+		'device_name'        => $device_name,
+		'remember'           => $remember,
+		'set_cookie'         => $set_cookie,
+	);
+
+	$challenge_context                       = $context;
+	$challenge_context['pending_request_id'] = $pending_request['pending_request_id'];
+
+	/**
+	 * Require an authentication policy challenge after primary credentials.
+	 *
+	 * Return null to continue normally, a public structured challenge array to
+	 * pause login, or WP_Error to reject login. Never include secrets in the
+	 * public challenge descriptor.
+	 *
+	 * @param null|array|WP_Error $challenge Public challenge descriptor.
+	 * @param WP_User            $user      Authenticated user.
+	 * @param array              $context   Pending login context.
+	 */
+	$challenge = apply_filters( 'wp_native_auth_login_challenge', null, $user, $challenge_context );
+	if ( is_wp_error( $challenge ) ) {
+		return $challenge;
+	}
+
+	if ( null !== $challenge ) {
+		if ( ! is_array( $challenge ) || empty( $challenge['type'] ) || ! is_string( $challenge['type'] ) ) {
+			return new WP_Error( 'invalid_challenge_contract', __( 'Authentication policy returned an invalid challenge.', 'wp-native-auth' ), array( 'status' => 500 ) );
+		}
+
+		$continuation = wp_native_auth_create_continuation( $pending_request );
+		if ( is_wp_error( $continuation ) ) {
+			return $continuation;
+		}
+
+		return array(
+			'challenge_required'      => true,
+			'challenge'               => $challenge,
+			'continuation_token'      => $continuation['token'],
+			'continuation_expires_at' => gmdate( 'c', $continuation['expires_at'] ),
+		);
+	}
+
+	return wp_native_auth_complete_login( $user, $device_id, $pending_request );
+}
+
+/**
+ * Mint the session for an already authenticated and policy-approved user.
+ *
+ * @param WP_User             $user      Authenticated user.
+ * @param string              $device_id Device UUID.
+ * @param array<string,mixed> $options   Bound pending login options.
+ * @return array<string,mixed>
+ */
+function wp_native_auth_complete_login( WP_User $user, string $device_id, array $options ): array {
+	$device_name = isset( $options['device_name'] ) ? (string) $options['device_name'] : '';
+	$remember    = ! empty( $options['remember'] );
+	$set_cookie  = ! empty( $options['set_cookie'] );
 
 	if ( $set_cookie ) {
 		wp_set_current_user( $user->ID, $user->user_login );
