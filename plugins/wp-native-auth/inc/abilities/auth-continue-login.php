@@ -64,6 +64,8 @@ function wp_native_auth_register_continue_login_ability(): void {
 
 /** Execute the authentication challenge continuation ability. */
 function wp_native_auth_execute_continue_login_ability( array $input ) {
+	wp_native_auth_ensure_schema();
+
 	return wp_native_auth_continue_login(
 		isset( $input['continuation_token'] ) ? (string) $input['continuation_token'] : '',
 		isset( $input['device_id'] ) ? (string) $input['device_id'] : '',

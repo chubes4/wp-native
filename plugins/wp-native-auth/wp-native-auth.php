@@ -42,6 +42,7 @@ define( 'WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS', 5 );
 // Pending authentication challenge lifetime and verification-attempt ceiling.
 define( 'WP_NATIVE_AUTH_CONTINUATION_TTL', 5 * MINUTE_IN_SECONDS );
 define( 'WP_NATIVE_AUTH_CONTINUATION_MAX_ATTEMPTS', 5 );
+define( 'WP_NATIVE_AUTH_CONTINUATION_CLEANUP_HOOK', 'wp_native_auth_cleanup_continuations' );
 
 // DB layer (refresh tokens table installer).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/db.php';
@@ -74,11 +75,27 @@ require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/abilities.php';
 /**
  * Activation: install the network-wide refresh tokens table.
  */
-register_activation_hook( __FILE__, 'wp_native_auth_install_refresh_tokens_table' );
+register_activation_hook( __FILE__, 'wp_native_auth_activate' );
+
+/** Install schema and schedule bounded continuation cleanup. */
+function wp_native_auth_activate(): void {
+	wp_native_auth_install_refresh_tokens_table();
+	wp_native_auth_schedule_continuation_cleanup();
+}
+
+/** Remove the continuation cleanup schedule on deactivation. */
+function wp_native_auth_deactivate(): void {
+	wp_clear_scheduled_hook( WP_NATIVE_AUTH_CONTINUATION_CLEANUP_HOOK );
+}
+
+register_deactivation_hook( __FILE__, 'wp_native_auth_deactivate' );
 
 /**
  * Lazy schema upgrade: pick up additive column migrations on existing
  * installs without requiring a plugin reactivation. Backward-compatible —
  * never logs active users out.
  */
-add_action( 'admin_init', 'wp_native_auth_maybe_upgrade_schema' );
+add_action( 'init', 'wp_native_auth_ensure_schema', 1 );
+add_action( 'init', 'wp_native_auth_schedule_continuation_cleanup', 2 );
+add_action( WP_NATIVE_AUTH_CONTINUATION_CLEANUP_HOOK, 'wp_native_auth_cleanup_continuations' );
+add_action( 'deleted_user', 'wp_native_auth_delete_user_continuations' );

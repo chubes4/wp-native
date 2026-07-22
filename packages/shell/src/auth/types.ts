@@ -30,10 +30,24 @@ export interface AuthMeUser {
 /** Public descriptor and opaque bearer for a pending login challenge. */
 export interface AuthChallengeRequirement {
   challenge_required: true;
+  challenge_policy: string;
   challenge: { type: string; [key: string]: unknown };
   continuation_token: string;
   continuation_expires_at: string;
 }
+
+/** Successful password-only or continued login result. */
+export interface AuthLoginSuccess {
+  challenge_required?: never;
+  access_token: string;
+  access_expires_at: string;
+  refresh_token: string;
+  refresh_expires_at: string;
+  user: AuthMeUser;
+}
+
+/** Authoritative discriminated result from `wp-native/auth-login`. */
+export type AuthLoginResult = AuthLoginSuccess | AuthChallengeRequirement;
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
 

@@ -90,13 +90,14 @@ if ( ! function_exists( 'wp_native_auth_register_login_ability' ) ) {
 						),
 						array(
 							'type'                 => 'object',
-							'required'             => array( 'challenge_required', 'challenge', 'continuation_token', 'continuation_expires_at' ),
+							'required'             => array( 'challenge_required', 'challenge_policy', 'challenge', 'continuation_token', 'continuation_expires_at' ),
 							'additionalProperties' => false,
 							'properties'           => array(
 								'challenge_required'      => array(
 									'type' => 'boolean',
 									'enum' => array( true ),
 								),
+								'challenge_policy'        => array( 'type' => 'string' ),
 								'challenge'               => array( 'type' => 'object' ),
 								'continuation_token'      => array( 'type' => 'string' ),
 								'continuation_expires_at' => array(
@@ -124,6 +125,8 @@ if ( ! function_exists( 'wp_native_auth_execute_login_ability' ) ) {
 	 * @return array<string, mixed>|WP_Error
 	 */
 	function wp_native_auth_execute_login_ability( array $input ) {
+		wp_native_auth_ensure_schema();
+
 		if ( ! function_exists( 'wp_native_auth_login_with_tokens' ) ) {
 			return new WP_Error(
 				'token_service_unavailable',

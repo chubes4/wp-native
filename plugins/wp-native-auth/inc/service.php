@@ -31,9 +31,9 @@ require_once __DIR__ . '/tokens.php';
  * @param int    $user_id     User ID.
  * @param string $device_id   Device ID (UUID v4).
  * @param string $device_name Optional human-readable device name.
- * @return array{token:string, expires_at:int} Plaintext token and Unix expiry.
+ * @return array{token:string, expires_at:int}|WP_Error Plaintext token and Unix expiry.
  */
-function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '' ): array {
+function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '' ) {
 	global $wpdb;
 
 	$table_name = wp_native_auth_refresh_tokens_table_name();
@@ -85,7 +85,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 	);
 
 	if ( $existing_id ) {
-		$wpdb->update(
+		$persisted = $wpdb->update(
 			$table_name,
 			$data,
 			array( 'id' => (int) $existing_id ),
@@ -94,11 +94,15 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 		);
 	} else {
 		$data['created_at'] = $now;
-		$wpdb->insert(
+		$persisted          = $wpdb->insert(
 			$table_name,
 			$data,
 			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
+	}
+
+	if ( false === $persisted ) {
+		return new WP_Error( 'refresh_token_storage_failed', __( 'The refresh token could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
 	}
 
 	return array(
@@ -191,6 +195,9 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 		'identifier' => $identifier,
 		'device_id'  => $device_id,
 		'client_id'  => wp_native_auth_get_client_id(),
+		'blog_id'    => get_current_blog_id(),
+		'reason'     => 'login',
+		'phase'      => 'primary',
 	);
 
 	/**
@@ -239,40 +246,40 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 		return $pre_login;
 	}
 
+	$login_context = $context;
+
 	$pending_request = array(
 		'pending_request_id' => wp_generate_uuid4(),
 		'user_id'            => (int) $user->ID,
+		'blog_id'            => get_current_blog_id(),
 		'device_id'          => $device_id,
 		'client_id'          => $context['client_id'],
-		'device_name'        => $device_name,
-		'remember'           => $remember,
-		'set_cookie'         => $set_cookie,
+		'login_context'      => $login_context,
+		'login_options'      => array(
+			'device_name' => $device_name,
+			'remember'    => $remember,
+			'set_cookie'  => $set_cookie,
+		),
 	);
 
-	$challenge_context                       = $context;
+	$challenge_context                       = $login_context;
 	$challenge_context['pending_request_id'] = $pending_request['pending_request_id'];
 
-	/**
-	 * Require an authentication policy challenge after primary credentials.
-	 *
-	 * Return null to continue normally, a public structured challenge array to
-	 * pause login, or WP_Error to reject login. Never include secrets in the
-	 * public challenge descriptor.
-	 *
-	 * @param null|array|WP_Error $challenge Public challenge descriptor.
-	 * @param WP_User            $user      Authenticated user.
-	 * @param array              $context   Pending login context.
-	 */
-	$challenge = apply_filters( 'wp_native_auth_login_challenge', null, $user, $challenge_context );
-	if ( is_wp_error( $challenge ) ) {
-		return $challenge;
-	}
+	foreach ( wp_native_auth_get_challenge_policies() as $policy_id => $policy ) {
+		$challenge = call_user_func( $policy['challenge'], $user, $challenge_context );
+		if ( is_wp_error( $challenge ) ) {
+			return $challenge;
+		}
 
-	if ( null !== $challenge ) {
+		if ( null === $challenge ) {
+			continue;
+		}
+
 		if ( 'array' !== gettype( $challenge ) || empty( $challenge['type'] ) || ! is_string( $challenge['type'] ) ) {
 			return new WP_Error( 'invalid_challenge_contract', __( 'Authentication policy returned an invalid challenge.', 'wp-native-auth' ), array( 'status' => 500 ) );
 		}
 
+		$pending_request['policy_id'] = $policy_id;
 		$continuation = wp_native_auth_create_continuation( $pending_request );
 		if ( is_wp_error( $continuation ) ) {
 			return $continuation;
@@ -280,13 +287,14 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 
 		return array(
 			'challenge_required'      => true,
+			'challenge_policy'        => $policy_id,
 			'challenge'               => $challenge,
 			'continuation_token'      => $continuation['token'],
 			'continuation_expires_at' => gmdate( 'c', $continuation['expires_at'] ),
 		);
 	}
 
-	return wp_native_auth_complete_login( $user, $device_id, $pending_request );
+	return wp_native_auth_complete_login( $user, $device_id, $pending_request['login_options'] );
 }
 
 /**
@@ -295,21 +303,47 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
  * @param WP_User             $user      Authenticated user.
  * @param string              $device_id Device UUID.
  * @param array<string,mixed> $options   Bound pending login options.
- * @return array<string,mixed>
+ * @return array<string,mixed>|WP_Error
  */
-function wp_native_auth_complete_login( WP_User $user, string $device_id, array $options ): array {
+function wp_native_auth_complete_login( WP_User $user, string $device_id, array $options ) {
+	global $wpdb;
+
 	$device_name = isset( $options['device_name'] ) ? (string) $options['device_name'] : '';
 	$remember    = ! empty( $options['remember'] );
 	$set_cookie  = ! empty( $options['set_cookie'] );
+
+	if ( $set_cookie && headers_sent() ) {
+		return new WP_Error( 'cookie_issuance_failed', __( 'The browsing session could not be established.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
+
+	// Keep refresh persistence rollback-capable until access-token storage has
+	// also succeeded. Cookie side effects happen only after both token stores.
+	if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+		return new WP_Error( 'session_storage_failed', __( 'The session could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
+	$refresh = wp_native_auth_issue_refresh_token( (int) $user->ID, $device_id, $device_name );
+	if ( is_wp_error( $refresh ) ) {
+		$wpdb->query( 'ROLLBACK' );
+		return $refresh;
+	}
+
+	$access = wp_native_auth_generate_access_token( (int) $user->ID, $device_id );
+	if ( is_wp_error( $access ) ) {
+		$wpdb->query( 'ROLLBACK' );
+		return $access;
+	}
+
+	if ( false === $wpdb->query( 'COMMIT' ) ) {
+		$wpdb->query( 'ROLLBACK' );
+		wp_native_auth_revoke_access_token( $access['token'] );
+		return new WP_Error( 'session_storage_failed', __( 'The session could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
 
 	if ( $set_cookie ) {
 		wp_set_current_user( $user->ID, $user->user_login );
 		wp_set_auth_cookie( $user->ID, $remember );
 		do_action( 'wp_login', $user->user_login, $user );
 	}
-
-	$access  = wp_native_auth_generate_access_token( (int) $user->ID, $device_id );
-	$refresh = wp_native_auth_issue_refresh_token( (int) $user->ID, $device_id, $device_name );
 
 	$token_pair = array(
 		'access_token'       => $access['token'],
@@ -557,6 +591,10 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	$new_token_hash    = wp_native_auth_hash_refresh_token( $new_refresh_token );
 	$new_expires_ts    = $now_ts + $ttl;
 	$new_expires_at    = wp_native_auth_mysql_gmt( $new_expires_ts );
+	$access            = wp_native_auth_generate_access_token( $user_id, $device_id );
+	if ( is_wp_error( $access ) ) {
+		return $access;
+	}
 
 	// ATOMIC ROTATION: a single conditional UPDATE that only succeeds if the
 	// row STILL holds the old hash. InnoDB makes this single statement
@@ -580,6 +618,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	);
 
 	if ( false === $updated ) {
+		wp_native_auth_revoke_access_token( $access['token'] );
 		return new WP_Error(
 			'refresh_update_failed',
 			__( 'Failed to rotate refresh token.', 'wp-native-auth' ),
@@ -592,6 +631,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	// this token — burn the family and surface the reuse error rather than
 	// double-minting a second valid pair from the same old token.
 	if ( 0 === (int) $updated ) {
+		wp_native_auth_revoke_access_token( $access['token'] );
 		wp_native_auth_revoke_token_family( $token_family );
 
 		/** This action is documented above (reuse-detection branch). */
@@ -603,8 +643,6 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 			array( 'status' => 401 )
 		);
 	}
-
-	$access = wp_native_auth_generate_access_token( $user_id, $device_id );
 
 	$token_pair = array(
 		'access_token'       => $access['token'],
@@ -895,6 +933,13 @@ function wp_native_auth_register_with_tokens( string $email, string $password, s
 	// 11. Issue tokens.
 	$access  = wp_native_auth_generate_access_token( $user_id, $device_id );
 	$refresh = wp_native_auth_issue_refresh_token( $user_id, $device_id, $device_name );
+	if ( is_wp_error( $access ) ) {
+		return $access;
+	}
+	if ( is_wp_error( $refresh ) ) {
+		wp_native_auth_revoke_access_token( $access['token'] );
+		return $refresh;
+	}
 
 	$token_pair = array(
 		'access_token'       => $access['token'],

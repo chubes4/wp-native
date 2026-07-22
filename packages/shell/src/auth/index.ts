@@ -17,6 +17,8 @@ export type {
   AuthActions,
   AuthMeUser,
   AuthChallengeRequirement,
+  AuthLoginSuccess,
+  AuthLoginResult,
   TokenStorageAdapter,
   WPNativeApiConfig,
   AuthProviderProps,
