@@ -40,6 +40,7 @@ defined( 'ABSPATH' ) || exit;
  * @return string Base64url-encoded random token (43 chars).
  */
 function wp_native_auth_generate_opaque_token(): string {
+	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Encodes random token bytes, not code.
 	return rtrim( strtr( base64_encode( random_bytes( 32 ) ), '+/', '-_' ), '=' );
 }
 

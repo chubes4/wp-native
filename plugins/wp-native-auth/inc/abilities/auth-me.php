@@ -56,10 +56,11 @@ if ( ! function_exists( 'wp_native_auth_execute_me_ability' ) ) {
 	 *
 	 * Delegates to the token service shipped in M4.2 to build the user payload.
 	 *
-	 * @param array<string, mixed> $input Validated ability input (empty for this ability).
+	 * @param array<string, mixed> $_input Validated ability input (empty for this ability).
 	 * @return array<string, mixed>|WP_Error
 	 */
-	function wp_native_auth_execute_me_ability( array $input ) {
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Required ability callback signature.
+	function wp_native_auth_execute_me_ability( array $_input ) {
 		if ( ! function_exists( 'wp_native_auth_build_user_payload' ) ) {
 			return new WP_Error(
 				'token_service_unavailable',
@@ -68,10 +69,10 @@ if ( ! function_exists( 'wp_native_auth_execute_me_ability' ) ) {
 			);
 		}
 
-		$user_id = wp_get_current_user()->ID;
+		$user = wp_get_current_user();
 
 		return array(
-			'user' => wp_native_auth_build_user_payload( $user_id ),
+			'user' => wp_native_auth_build_user_payload( $user ),
 		);
 	}
 }
