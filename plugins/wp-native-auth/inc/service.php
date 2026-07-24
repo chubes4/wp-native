@@ -619,6 +619,86 @@ function wp_native_auth_revoke_refresh_token( int $user_id, string $device_id ):
 }
 
 /**
+ * Revoke every active refresh session for a user.
+ *
+ * This is the user-wide counterpart to per-device revocation. The single
+ * conditional UPDATE is atomic across all devices and token families for the
+ * user, and repeated calls are safe: an already-fully-revoked user returns 0.
+ * Existing access tokens are not affected and remain valid until their short
+ * site-transient TTL expires; revoked refresh tokens cannot mint replacements.
+ *
+ * @param int $user_id User ID.
+ * @return int|WP_Error Number of rows revoked, or an error on storage failure.
+ */
+function wp_native_auth_revoke_user_refresh_tokens( int $user_id ) {
+	global $wpdb;
+
+	if ( $user_id <= 0 ) {
+		return new WP_Error(
+			'invalid_user_id',
+			__( 'A valid user ID is required to revoke refresh sessions.', 'wp-native-auth' )
+		);
+	}
+
+	$table_name = wp_native_auth_refresh_tokens_table_name();
+	$now        = wp_native_auth_mysql_gmt( time() );
+	$updated    = $wpdb->query(
+		$wpdb->prepare(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
+			"UPDATE {$table_name} SET revoked_at = %s WHERE user_id = %d AND revoked_at IS NULL",
+			$now,
+			$user_id
+		)
+	);
+
+	if ( false === $updated ) {
+		$error = new WP_Error(
+			'refresh_session_revocation_failed',
+			__( 'Failed to revoke refresh sessions.', 'wp-native-auth' ),
+			array( 'user_id' => $user_id )
+		);
+
+		/**
+		 * Fires when user-wide refresh-session revocation fails.
+		 *
+		 * @param int      $user_id User whose sessions could not be revoked.
+		 * @param WP_Error $error   Storage failure.
+		 */
+		do_action( 'wp_native_auth_user_refresh_session_revocation_failed', $user_id, $error );
+
+		return $error;
+	}
+
+	$revoked = (int) $updated;
+
+	/**
+	 * Fires after user-wide refresh-session revocation succeeds.
+	 *
+	 * Fires with zero rows for an idempotent no-op, allowing consumers to
+	 * distinguish successful completion from a storage failure.
+	 *
+	 * @param int $user_id User whose sessions were revoked.
+	 * @param int $revoked Number of rows revoked.
+	 */
+	do_action( 'wp_native_auth_user_refresh_sessions_revoked', $user_id, $revoked );
+
+	return $revoked;
+}
+
+/**
+ * Revoke native refresh sessions after WordPress sets a password.
+ *
+ * The canonical wp_set_password lifecycle covers direct password writes,
+ * authenticated wp_update_user() changes, and reset_password().
+ *
+ * @param string $_password Plaintext password just set. Unused.
+ * @param int    $user_id   User whose password changed.
+ */
+function wp_native_auth_revoke_refresh_sessions_on_password_change( string $_password, int $user_id ): void {
+	wp_native_auth_revoke_user_refresh_tokens( $user_id );
+}
+
+/**
  * List active device sessions for a user.
  *
  * Returns one row per device that has a non-revoked, non-expired refresh
