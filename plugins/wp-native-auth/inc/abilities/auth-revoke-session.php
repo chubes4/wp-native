@@ -68,7 +68,7 @@ if ( ! function_exists( 'wp_native_auth_execute_revoke_session_ability' ) ) {
 	 * Uses the current user from the bearer token — not from input.
 	 *
 	 * @param array<string, mixed> $input Validated ability input.
-	 * @return array<string, mixed>|WP_Error
+	 * @return bool|WP_Error
 	 */
 	function wp_native_auth_execute_revoke_session_ability( array $input ) {
 		if ( ! function_exists( 'wp_native_auth_revoke_refresh_token' ) ) {

@@ -53,6 +53,7 @@ defined( 'ABSPATH' ) || exit;
  * @return string Base64url-encoded string without `=` padding.
  */
 function wp_native_auth_base64url_encode( string $binary ): string {
+	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Required RFC 4648 encoding, not obfuscation.
 	return rtrim( strtr( base64_encode( $binary ), '+/', '-_' ), '=' );
 }
 
@@ -65,7 +66,8 @@ function wp_native_auth_base64url_encode( string $binary ): string {
 function wp_native_auth_base64url_decode( string $encoded ) {
 	$remainder = strlen( $encoded ) % 4;
 	$padded    = $remainder ? $encoded . str_repeat( '=', 4 - $remainder ) : $encoded;
-	$decoded   = base64_decode( strtr( $padded, '-_', '+/' ), true );
+	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Required RFC 4648 decoding, not obfuscation.
+	$decoded = base64_decode( strtr( $padded, '-_', '+/' ), true );
 	return false !== $decoded ? $decoded : false;
 }
 
@@ -129,7 +131,7 @@ function wp_native_auth_verify_external_token( string $token, string $secret, in
 	}
 
 	$rsplit_idx = strrpos( $token, '.' );
-	if ( false === $rsplit_idx || 0 === $rsplit_idx || $rsplit_idx === strlen( $token ) - 1 ) {
+	if ( false === $rsplit_idx || 0 === $rsplit_idx || strlen( $token ) - 1 === $rsplit_idx ) {
 		return null;
 	}
 

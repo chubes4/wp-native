@@ -126,10 +126,7 @@ function wp_native_auth_build_user_payload( WP_User $user, array $context = arra
 	$registered_ts = strtotime( (string) $user->user_registered . ' UTC' );
 	$registered_at = $registered_ts ? gmdate( 'c', (int) $registered_ts ) : '';
 
-	$roles = array();
-	if ( isset( $user->roles ) && is_array( $user->roles ) ) {
-		$roles = array_values( array_map( 'strval', $user->roles ) );
-	}
+	$roles = array_values( array_map( 'strval', $user->roles ) );
 
 	$payload = array(
 		'id'            => (int) $user->ID,
@@ -148,6 +145,7 @@ function wp_native_auth_build_user_payload( WP_User $user, array $context = arra
 	 * @param WP_User $user    Underlying WP_User object.
 	 * @param array   $context Additional context (device_id, reason, etc.).
 	 */
+	/** @var mixed $filtered */
 	$filtered = apply_filters( 'wp_native_auth_user_payload', $payload, $user, $context );
 
 	return is_array( $filtered ) ? $filtered : $payload;
@@ -223,14 +221,6 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 		);
 	}
 
-	if ( ! ( $user instanceof WP_User ) ) {
-		return new WP_Error(
-			'invalid_credentials',
-			__( 'Invalid username or password.', 'wp-native-auth' ),
-			array( 'status' => 401 )
-		);
-	}
-
 	/**
 	 * Filter to block a resolved user post-authentication.
 	 *
@@ -280,6 +270,7 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 		}
 
 		$pending_request['policy_id'] = $policy_id;
+
 		$continuation = wp_native_auth_create_continuation( $pending_request );
 		if ( is_wp_error( $continuation ) ) {
 			return $continuation;
@@ -816,13 +807,13 @@ function wp_native_auth_list_user_sessions( int $user_id, string $current_device
 
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
-			"SELECT device_id, device_name, created_at, last_used_at, expires_at
-			 FROM {$table_name}
+			'SELECT device_id, device_name, created_at, last_used_at, expires_at
+			 FROM %i
 			 WHERE user_id = %d
 			   AND revoked_at IS NULL
 			   AND expires_at > %s
-			 ORDER BY last_used_at DESC, created_at DESC",
+			 ORDER BY last_used_at DESC, created_at DESC',
+			$table_name,
 			$user_id,
 			$now
 		),

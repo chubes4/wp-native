@@ -83,10 +83,11 @@ if ( ! function_exists( 'wp_native_auth_execute_sessions_ability' ) ) {
 	 *
 	 * Delegates to the token service shipped in M4.2.
 	 *
-	 * @param array<string, mixed> $input Validated ability input (empty for this ability).
-	 * @return array<string, mixed>|WP_Error
+	 * @param array<string, mixed> $_input Validated ability input (empty for this ability).
+	 * @return array<int, array<string, mixed>>|WP_Error
 	 */
-	function wp_native_auth_execute_sessions_ability( array $input ) {
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Required ability callback signature.
+	function wp_native_auth_execute_sessions_ability( array $_input ) {
 		if ( ! function_exists( 'wp_native_auth_list_user_sessions' ) ) {
 			return new WP_Error(
 				'token_service_unavailable',

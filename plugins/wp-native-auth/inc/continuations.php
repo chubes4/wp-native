@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 defined( 'ABSPATH' ) || exit;
 
-/** @var array<string,array{challenge:callable,verify:callable}> */
 $GLOBALS['wp_native_auth_challenge_policies'] = array();
 
 /**
@@ -334,7 +333,10 @@ function wp_native_auth_continue_login( string $token, string $device_id, array 
 	// the already-persisted usable token pair is still returned to the client.
 	$wpdb->delete(
 		$table,
-		array( 'id' => (int) $row['id'], 'claim_token' => $consumed_claim ),
+		array(
+			'id'          => (int) $row['id'],
+			'claim_token' => $consumed_claim,
+		),
 		array( '%d', '%s' )
 	);
 
