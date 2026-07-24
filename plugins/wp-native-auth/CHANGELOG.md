@@ -2,6 +2,14 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.2.0] - 2026-07-24
+
+### Fixed
+- unblock wp-native-auth release checks
+- revoke refresh sessions after password changes
+- harden authentication challenge continuations
+- satisfy authentication continuation quality gates
+
 ## [0.1.4] - 2026-06-15
 
 ### Fixed
