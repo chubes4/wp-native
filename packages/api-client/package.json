@@ -1,5 +1,6 @@
 {
   "name": "wp-native-client",
+  "type": "module",
   "version": "0.0.2",
   "description": "Universal WordPress client built on the Abilities API. Discovery + execution. Works in WordPress blocks, React Native, and Node — one client, three transports, one ability surface.",
   "main": "dist/index.js",
@@ -40,6 +41,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -b",
+    "test": "tsc -b && node --test tests/pre-auth-transport.test.mjs",
     "prepublishOnly": "tsc -b"
   }
 }

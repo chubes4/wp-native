@@ -32,12 +32,7 @@
  *
  * This file ships only the crypto primitive. Building payloads, choosing
  * scope strings, and gating on user identity are the caller's concern
- * (typically a feature plugin like extrachill-studio that bridges to a
- * specific external service).
- *
- * Lineage: shape forked from the sweatpants HMAC validator (see
- * Extra-Chill/sweatpants:sweatpants/api/auth.py) so both sides interop
- * byte-for-byte without a shared library.
+ * (typically a feature plugin that bridges to a specific external service).
  *
  * @package WPNative\Auth
  * @since 0.2.0

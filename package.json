@@ -14,6 +14,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -b",
+    "test:transport": "npm run typecheck && node --test packages/api-client/tests/pre-auth-transport.test.mjs",
     "typecheck:watch": "tsc -b --watch",
     "clean": "tsc -b --clean"
   },

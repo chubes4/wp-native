@@ -32,6 +32,9 @@ export interface FetchTransportConfig {
    * Use this to trigger token refresh or logout.
    */
   onUnauthorized?: () => void | Promise<void>;
+
+  /** Extra headers included on every request. */
+  defaultHeaders?: Record<string, string>;
 }
 
 export class FetchTransport implements Transport {
@@ -52,6 +55,7 @@ export class FetchTransport implements Transport {
 
     const headers: Record<string, string> = {
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+      ...(this.config.defaultHeaders ?? {}),
       ...authHeaders,
       ...req.headers,
     };
@@ -66,17 +70,15 @@ export class FetchTransport implements Transport {
         : null,
     });
 
-    if (response.status === 401) {
-      await this.config.onUnauthorized?.();
-      throw new ApiError('Unauthorized', 'unauthorized', 401);
-    }
-
     if (!response.ok) {
       let errorData: { code?: string; message?: string } = {};
       try {
         errorData = await response.json();
       } catch {
         // Response wasn't JSON
+      }
+      if (response.status === 401) {
+        await this.config.onUnauthorized?.();
       }
       throw new ApiError(
         errorData.message || `Request failed with status ${response.status}`,

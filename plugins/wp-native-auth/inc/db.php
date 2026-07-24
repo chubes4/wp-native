@@ -1,12 +1,11 @@
 <?php
 /**
- * Refresh tokens table — installer + table-name helper.
+ * Authentication tables — installer + table-name helpers.
  *
  * The table is network-wide ({$wpdb->base_prefix}), shared across every blog
  * in a multisite install. Schema is the contract defined in SCHEMAS.md.
  *
- * Lineage: forked from extrachill-users (inc/auth-tokens/db.php). All
- * Extra Chill specifics stripped — this runs on vanilla WordPress.
+ * This storage layer is generic and runs on vanilla WordPress.
  *
  * @package WPNativeAuth
  */
@@ -16,7 +15,7 @@ declare(strict_types=1);
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Schema version for the refresh tokens table.
+ * Schema version for the authentication tables.
  *
  * Bump this whenever the table shape changes so the lazy migration in
  * wp_native_auth_maybe_upgrade_schema() re-runs dbDelta on existing
@@ -28,8 +27,12 @@ defined( 'ABSPATH' ) || exit;
  *       revoked_at).
  *   2 — refresh-token reuse detection (#55): adds token_family and
  *       prev_token_hash columns.
+ *   3 — authentication challenge continuations (#63): adds the opaque
+ *       login continuations table.
+ *   4 — binds continuations to blog and policy, adds stable rate-limit
+ *       identity and atomic issuance claims.
  */
-const WP_NATIVE_AUTH_SCHEMA_VERSION = 2;
+const WP_NATIVE_AUTH_SCHEMA_VERSION = 4;
 
 /**
  * Network option key storing the installed schema version.
@@ -49,6 +52,15 @@ function wp_native_auth_refresh_tokens_table_name(): string {
 	global $wpdb;
 
 	return $wpdb->base_prefix . 'wp_native_auth_refresh_tokens';
+}
+
+/**
+ * Returns the network-wide login continuations table name.
+ */
+function wp_native_auth_continuations_table_name(): string {
+	global $wpdb;
+
+	return $wpdb->base_prefix . 'wp_native_auth_login_continuations';
 }
 
 /**
@@ -74,6 +86,7 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 	$table_name      = wp_native_auth_refresh_tokens_table_name();
+	$continuations   = wp_native_auth_continuations_table_name();
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE {$table_name} (
@@ -96,6 +109,32 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 	) {$charset_collate};";
 
 	dbDelta( $sql );
+
+	$continuations_sql = "CREATE TABLE {$continuations} (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		token_hash char(64) NOT NULL,
+		user_id bigint(20) unsigned NOT NULL,
+		blog_id bigint(20) unsigned NOT NULL,
+		device_id char(36) NOT NULL,
+		client_id varchar(191) NOT NULL DEFAULT '',
+		policy_id varchar(191) NOT NULL,
+		rate_limit_hash char(64) NOT NULL,
+		request_hash char(64) NOT NULL,
+		request_data longtext NOT NULL,
+		attempts smallint(5) unsigned NOT NULL DEFAULT 0,
+		claim_token char(64) NULL,
+		claimed_at datetime NULL,
+		created_at datetime NOT NULL,
+		expires_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		UNIQUE KEY token_hash (token_hash),
+		UNIQUE KEY rate_limit_hash (rate_limit_hash),
+		KEY user_id (user_id),
+		KEY blog_id (blog_id),
+		KEY expires_at (expires_at)
+	) {$charset_collate};";
+
+	dbDelta( $continuations_sql );
 
 	wp_native_auth_backfill_token_family();
 
@@ -137,9 +176,9 @@ function wp_native_auth_backfill_token_family(): void {
 /**
  * Lazily run the schema migration when the installed version is behind.
  *
- * Hooked on admin_init so existing installs pick up new columns without a
- * plugin reactivation. Cheap no-op once the stored version matches the
- * current WP_NATIVE_AUTH_SCHEMA_VERSION constant.
+ * Called during early init and directly by public auth execution paths so
+ * headless installs pick up new columns without a plugin reactivation.
+ * Cheap no-op once the stored version matches the current schema constant.
  */
 function wp_native_auth_maybe_upgrade_schema(): void {
 	$installed = (int) get_site_option( WP_NATIVE_AUTH_SCHEMA_VERSION_OPTION, 0 );
@@ -149,4 +188,11 @@ function wp_native_auth_maybe_upgrade_schema(): void {
 	}
 
 	wp_native_auth_install_refresh_tokens_table();
+}
+
+/**
+ * Ensure public/headless requests can use the current schema before execution.
+ */
+function wp_native_auth_ensure_schema(): void {
+	wp_native_auth_maybe_upgrade_schema();
 }

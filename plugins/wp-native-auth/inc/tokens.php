@@ -2,10 +2,7 @@
 /**
  * Token primitives for wp-native-auth.
  *
- * Generic token helpers — no Extra Chill specifics.
- *
- * Lineage: forked from extrachill-users/inc/auth-tokens/tokens.php and
- * generalized. Access tokens are opaque random strings (site-transient-
+ * Generic token helpers. Access tokens are opaque random strings (site-transient-
  * backed, network-wide on multisite) for v0.1; JWT lands later if/when
  * needed.
  *
@@ -31,7 +28,7 @@ defined( 'ABSPATH' ) || exit;
  *   literal space character. Those are hostile to HTTP transport:
  *     - `sanitize_text_field()` HTML-encodes the first five, mangling
  *       the token in transit (caused ~45% silent auth failures in
- *       extrachill.com production before this fix).
+ *       production before this fix).
  *     - A literal space embeds in random positions, and `trim()` on
  *       the receiving side corrupts tokens with edge whitespace.
  *     - URL-encoding any of these requires extra care from clients.
@@ -105,9 +102,9 @@ function wp_native_auth_mysql_gmt( int $ts ): string {
  *
  * @param int    $user_id   User ID the token authenticates.
  * @param string $device_id Device ID (UUID v4).
- * @return array{token:string, expires_at:int} Plaintext token and Unix expiry.
+ * @return array{token:string, expires_at:int}|WP_Error Plaintext token and Unix expiry.
  */
-function wp_native_auth_generate_access_token( int $user_id, string $device_id ): array {
+function wp_native_auth_generate_access_token( int $user_id, string $device_id ) {
 	$ttl = (int) apply_filters(
 		'wp_native_auth_access_token_ttl',
 		WP_NATIVE_AUTH_ACCESS_TOKEN_TTL,
@@ -122,7 +119,7 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 	$token_hash = hash( 'sha256', $token );
 	$expires_at = time() + $ttl;
 
-	set_site_transient(
+	$stored = set_site_transient(
 		'wp_native_auth_access_' . $token_hash,
 		array(
 			'user_id'    => $user_id,
@@ -131,11 +128,22 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 		),
 		$ttl
 	);
+	$stored = (bool) apply_filters( 'wp_native_auth_access_token_storage_result', $stored, $token_hash, $user_id, $device_id );
+
+	if ( ! $stored ) {
+		delete_site_transient( 'wp_native_auth_access_' . $token_hash );
+		return new WP_Error( 'access_token_storage_failed', __( 'The access token could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
 
 	return array(
 		'token'      => $token,
 		'expires_at' => $expires_at,
 	);
+}
+
+/** Delete a newly issued access token during failed session compensation. */
+function wp_native_auth_revoke_access_token( string $token ): bool {
+	return delete_site_transient( 'wp_native_auth_access_' . hash( 'sha256', $token ) );
 }
 
 /**

@@ -2,7 +2,7 @@
 
 This document is the **authoritative contract** for every ability the `wp-native-auth` WordPress plugin registers. Implementations MUST match these schemas exactly. The wp-native-client side relies on them.
 
-Lineage: forked from the token-auth subsystem of `extrachill-users` (`inc/auth-tokens/`). Generic — no Extra Chill specifics. No `community_blog_id`, no Turnstile, no multisite-specific `ec_get_blog_id()`. Those are EC concerns, not framework concerns.
+The contract is generic. Site policy and product-specific behavior belong in extension hooks.
 
 ## Constants
 
@@ -10,6 +10,8 @@ Lineage: forked from the token-auth subsystem of `extrachill-users` (`inc/auth-t
 WP_NATIVE_AUTH_ACCESS_TOKEN_TTL   = 15 * MINUTE_IN_SECONDS  // 900 seconds
 WP_NATIVE_AUTH_REFRESH_TOKEN_TTL  = 30 * DAY_IN_SECONDS     // sliding, extended on refresh
 WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS = 5
+WP_NATIVE_AUTH_CONTINUATION_TTL = 5 * MINUTE_IN_SECONDS
+WP_NATIVE_AUTH_CONTINUATION_MAX_ATTEMPTS = 5
 ```
 
 All timestamps in responses are ISO-8601 strings (e.g. `2026-05-02T19:30:00+00:00`) generated via `gmdate( 'c', $unix_ts )`. Inputs that need expiry semantics use Unix seconds where present.
@@ -54,6 +56,34 @@ compared against the `WP_NATIVE_AUTH_SCHEMA_VERSION` constant in `inc/db.php`:
 
 - **v1** — original shape (no `token_family` / `prev_token_hash`).
 - **v2** — refresh-token reuse detection (#55): adds `token_family` + `prev_token_hash`.
+- **v3** — authentication challenge continuations (#63): adds the network-wide `wp_native_auth_login_continuations` table.
+- **v4** — binds continuation state to blog and issuing policy, adds one stable account-policy rate-limit identity, and adds atomic claim fields.
+
+```sql
+CREATE TABLE {$wpdb->base_prefix}wp_native_auth_login_continuations (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  token_hash char(64) NOT NULL,
+  user_id bigint(20) unsigned NOT NULL,
+  blog_id bigint(20) unsigned NOT NULL,
+  device_id char(36) NOT NULL,
+  client_id varchar(191) NOT NULL DEFAULT '',
+  policy_id varchar(191) NOT NULL,
+  rate_limit_hash char(64) NOT NULL,
+  request_hash char(64) NOT NULL,
+  request_data longtext NOT NULL,
+  attempts smallint(5) unsigned NOT NULL DEFAULT 0,
+  claim_token char(64) NULL,
+  claimed_at datetime NULL,
+  created_at datetime NOT NULL,
+  expires_at datetime NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY token_hash (token_hash),
+  UNIQUE KEY rate_limit_hash (rate_limit_hash),
+  KEY user_id (user_id),
+  KEY blog_id (blog_id),
+  KEY expires_at (expires_at)
+);
+```
 
 `wp_native_auth_maybe_upgrade_schema()` runs on `admin_init`; when the stored
 version is behind it re-runs `dbDelta()` (purely additive — the new columns are
@@ -173,6 +203,8 @@ Error codes use snake_case. HTTP status codes match the semantic intent (401 for
 
 #### Output schema
 
+Successful password-only logins retain the existing response unchanged.
+
 ```json
 {
   "type": "object",
@@ -195,6 +227,68 @@ Error codes use snake_case. HTTP status codes match the semantic intent (401 for
 | `invalid_credentials` | 401 | Bad identifier/password combination |
 | `invalid_device_id` | 400 | `device_id` is not a valid UUID v4 |
 | `user_blocked` | 403 | User account is suspended (extension hook — see "Extension points" below) |
+
+---
+
+### `wp-native/auth-continue-login`
+
+An authentication policy can pause `wp-native/auth-login` before cookies or
+tokens are created by registering through
+`wp_native_auth_register_challenge_policy()`. Policies run in registration
+order; the first public challenge returned becomes the sole issuer:
+
+```json
+{
+  "challenge_required": true,
+  "challenge_policy": "stable-policy-id",
+  "challenge": { "type": "policy-defined", "prompt": "Public instructions" },
+  "continuation_token": "opaque-single-use-bearer",
+  "continuation_expires_at": "2026-05-02T19:35:00+00:00"
+}
+```
+
+The policy ID must match `^[a-z0-9][a-z0-9._-]{0,190}$` and the descriptor must
+contain a non-empty string `type`. Integrations must not put secrets in this
+public object. To resume, clients call
+`wp-native/auth-continue-login` with `continuation_token`, the original
+`device_id`, and an arbitrary object `challenge_response`. The
+The continuation dispatches directly to the verifier registered for the stored,
+HMAC-bound `challenge_policy`; unrelated callbacks cannot observe or override
+the result. The verifier receives the bound user, untrusted response, and
+pending request context. It must return boolean `true` to complete login,
+`WP_Error` to reject with a policy-specific error, or null/false to return
+`challenge_rejected`.
+
+Continuations use 256-bit opaque bearers. Only SHA-256 hashes are persisted.
+Server-side state binds the blog, user, issuing policy, device,
+`WP-Native-Client`, pending request, original login context, cookie options, and
+device name under an HMAC. No password or challenge response is stored. One row
+per blog/account/policy preserves its five-attempt budget and original expiry
+across password resubmission and bearer reissuance. A request atomically claims
+the row before its targeted verifier runs. Expiry is atomically rechecked after
+verification and before transactional token persistence. Successful state is
+then deleted; recoverable persistence failure releases the claim for retry.
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `invalid_continuation` | 401 | Unknown, replayed, substituted, or binding-mismatched continuation |
+| `continuation_expired` | 401 | Continuation lifetime elapsed |
+| `challenge_rejected` | 401 | Policy did not explicitly approve the response |
+| `continuation_rate_limited` | 429 | Five verification attempts were consumed |
+| `continuation_in_progress` | 409 | Another request already claimed this continuation |
+| `challenge_policy_unavailable` | 503 | The issuing policy is not registered on the redemption request |
+
+### Continuation table and lifecycle
+
+`{$wpdb->base_prefix}wp_native_auth_login_continuations` stores hashed opaque
+bearers, blog/user/policy bindings, an HMAC-protected pending request, stable
+rate-limit hash, attempt count, claim state, and timestamps. It never stores a
+password or challenge response. The schema is created lazily before public
+ability execution as well as on activation/init, so headless traffic does not
+depend on admin requests. Hourly cleanup removes expired rows in batches of at
+most 500; `deleted_user` removes that user's rows; deactivation clears the cron
+schedule. This ephemeral security state is therefore not a durable privacy
+export record.
 
 ---
 
@@ -520,7 +614,7 @@ Same as `wp-native/auth-login` output (TokenPair + User).
 
 #### Extension hooks used
 
-1. `wp_native_auth_pre_authenticate` — fires before any user creation. Consumer can block (Turnstile, IP rate-limit).
+1. `wp_native_auth_pre_authenticate` — fires before any user creation. Consumer can block (request policy, IP rate-limit).
 2. `wp_native_auth_pre_register` — fires after validation, before `wp_create_user()`. Consumer can modify `username` or abort.
 3. `wp_native_auth_pre_login` — fires after user creation, before token issuance. Same post-user policy as login.
 4. `wp_native_auth_after_register` — fires after successful registration and token issuance.
@@ -533,13 +627,13 @@ These belong to the framework but ship later:
 
 - ❌ **OAuth abilities** (`wp-native/auth.oauth.google`, etc.) — M4.5+ once the base flow is dogfooded
 - ❌ **Password reset** — web-only flow, lives outside the framework
-- ❌ **Two-Factor Authentication integration** — extension hook only in M4 (see "Extension points")
+- Authentication policy integrations are supplied through extension hooks.
 - ✅ ~~**Browser handoff**~~ — shipped as `wp-native/auth-browser-handoff` in M4.5
 - ✅ ~~**Registration ability**~~ — shipped as `wp-native/auth-register`
 
 ## Extension points (filters and actions)
 
-The plugin MUST register these so consumers (like extrachill-users) can layer policy:
+The plugin MUST register these so consumers can layer policy:
 
 ### Filters
 
@@ -556,18 +650,27 @@ apply_filters( 'wp_native_auth_access_token_ttl', WP_NATIVE_AUTH_ACCESS_TOKEN_TT
 // Override refresh token TTL per user.
 apply_filters( 'wp_native_auth_refresh_token_ttl', WP_NATIVE_AUTH_REFRESH_TOKEN_TTL, $user_id );
 
-// Pre-validate registration / login (Turnstile, IP block, etc.).
+// Pre-validate registration / login (request policy, IP block, etc.).
 apply_filters( 'wp_native_auth_pre_authenticate', null, $identifier, $context );
 
 // Modify registration data or abort before wp_create_user().
 // Return null to continue, WP_Error to abort, or an array with
 // modified registration data (e.g. override username).
 apply_filters( 'wp_native_auth_pre_register', null, $registration_data, $context );
+
+// Recheck account state after a challenge without rerunning pre-login effects.
+apply_filters( 'wp_native_auth_revalidate_login', null, $user, $context );
+
+// Observe/override the boolean result of access-token cache persistence.
+apply_filters( 'wp_native_auth_access_token_storage_result', $stored, $token_hash, $user_id, $device_id );
 ```
 
 ### Actions
 
 ```php
+// Integrations register stable challenge and verifier callback pairs here.
+do_action( 'wp_native_auth_register_challenge_policies' );
+
 // Fired after a successful login.
 do_action( 'wp_native_auth_after_login', $user_id, $device_id, $token_pair );
 
@@ -587,7 +690,21 @@ do_action( 'wp_native_auth_after_logout', $user_id, $device_id );
 do_action( 'wp_native_auth_refresh_token_reuse_detected', $user_id, $device_id, $token_family );
 ```
 
-extrachill-users would consume these to enforce community-blog membership, run Turnstile, integrate Two Factor, etc. — without wp-native-auth knowing any of that exists.
+Registration callbacks call:
+
+```php
+wp_native_auth_register_challenge_policy(
+  'stable-policy-id',
+  $challenge_callback, // fn( WP_User $user, array $context ): null|array|WP_Error
+  $verify_callback     // fn( WP_User $user, array $response, array $context ): bool|WP_Error
+);
+```
+
+Duplicate or malformed IDs are rejected. The registration map is immutable by
+ID for the request; continuation verification invokes the stored issuer's
+callback directly rather than passing a mutable result through other policies.
+
+Integration plugins consume these hooks to enforce site authentication and account policy without wp-native-auth knowing implementation details.
 
 ## Implementation notes for minions
 
@@ -597,4 +714,4 @@ extrachill-users would consume these to enforce community-blog membership, run T
 4. **Token generation**: access tokens are opaque random strings minted via `wp_native_auth_generate_opaque_token()` (256-bit random, base64url-encoded, 43 chars from `[A-Za-z0-9_-]`) for v0.1 — JWT comes later. Refresh tokens and handoff tokens use the same helper. The alphabet is the RFC 7235 b64token form: HTTP-header-safe, URL-safe, shell-safe, no characters that `sanitize_text_field()` mangles.
 5. **Bearer auth**: M4 must include a small request-time hook that reads `Authorization: Bearer <token>` and resolves it to a `WP_User` via `wp_set_current_user()`. This is the gateway for `is_user_logged_in()` to work in permission callbacks.
 6. **Network-wide tables**: the refresh tokens table uses `$wpdb->base_prefix` so it's shared across all blogs in a multisite install.
-7. **No EC dependencies**: this plugin must run cleanly on a vanilla WP install. No `ec_get_blog_id()`, no `extrachill_*` functions. Anything site-specific is delegated to the filters above.
+7. **No site dependencies**: this plugin must run cleanly on a vanilla WP install. Anything site-specific is delegated to the filters above.

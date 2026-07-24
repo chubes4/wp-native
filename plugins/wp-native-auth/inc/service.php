@@ -6,12 +6,9 @@
  * login and registration flows that wire those primitives together with
  * WordPress's native authentication.
  *
- * Lineage: forked from extrachill-users/inc/auth-tokens/service.php and
- * generalized. Anything Extra Chill specific (community-blog membership,
- * Turnstile, user blocking, profile URL decoration) has been removed and
- * is exposed via the extension hooks documented in SCHEMAS.md so plugins
- * like extrachill-users can layer that policy without this plugin
- * knowing about them.
+ * Site authentication and account policy are exposed through the extension
+ * hooks documented in SCHEMAS.md so this generic layer does not know about
+ * integration implementations.
  *
  * @package WPNative\Auth
  */
@@ -34,9 +31,9 @@ require_once __DIR__ . '/tokens.php';
  * @param int    $user_id     User ID.
  * @param string $device_id   Device ID (UUID v4).
  * @param string $device_name Optional human-readable device name.
- * @return array{token:string, expires_at:int} Plaintext token and Unix expiry.
+ * @return array{token:string, expires_at:int}|WP_Error Plaintext token and Unix expiry.
  */
-function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '' ): array {
+function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '' ) {
 	global $wpdb;
 
 	$table_name = wp_native_auth_refresh_tokens_table_name();
@@ -88,7 +85,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 	);
 
 	if ( $existing_id ) {
-		$wpdb->update(
+		$persisted = $wpdb->update(
 			$table_name,
 			$data,
 			array( 'id' => (int) $existing_id ),
@@ -97,11 +94,15 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 		);
 	} else {
 		$data['created_at'] = $now;
-		$wpdb->insert(
+		$persisted          = $wpdb->insert(
 			$table_name,
 			$data,
 			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
+	}
+
+	if ( false === $persisted ) {
+		return new WP_Error( 'refresh_token_storage_failed', __( 'The refresh token could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
 	}
 
 	return array(
@@ -115,8 +116,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
  *
  * The shape is fixed by SCHEMAS.md (id, username, display_name, email,
  * avatar_url, roles, registered_at). Consumers can decorate the array via
- * the `wp_native_auth_user_payload` filter — that's where extrachill-users
- * adds `profile_url`, etc.
+ * the `wp_native_auth_user_payload` filter.
  *
  * @param WP_User             $user    WordPress user.
  * @param array<string,mixed> $context Optional. Additional context (e.g. device_id, reason).
@@ -159,14 +159,14 @@ function wp_native_auth_build_user_payload( WP_User $user, array $context = arra
  * Flow:
  *   1. Validate `device_id` is a UUID v4.
  *   2. Apply `wp_native_auth_pre_authenticate` filter — short-circuits
- *      before WP touches the password (Turnstile, IP block, etc.).
+ *      before WP touches the password (request policy, IP block, etc.).
  *   3. Call `wp_authenticate()` for username/email + password check.
  *   4. Apply `wp_native_auth_pre_login` filter on the resolved user —
- *      lets extensions block specific accounts (suspended, not a member
- *      of an EC blog, etc.).
- *   5. Optionally set the WP browsing cookie for same-origin web clients.
- *   6. Issue an access token + refresh token bound to the device.
- *   7. Fire `wp_native_auth_after_login`.
+ *      lets extensions block specific accounts.
+ *   5. Let authentication policy require a resumable challenge.
+ *   6. Optionally set the WP browsing cookie for same-origin web clients.
+ *   7. Issue an access token + refresh token bound to the device.
+ *   8. Fire `wp_native_auth_after_login`.
  *
  * @param string               $identifier Username or email.
  * @param string               $password   Plaintext password.
@@ -194,12 +194,16 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 	$context = array(
 		'identifier' => $identifier,
 		'device_id'  => $device_id,
+		'client_id'  => wp_native_auth_get_client_id(),
+		'blog_id'    => get_current_blog_id(),
+		'reason'     => 'login',
+		'phase'      => 'primary',
 	);
 
 	/**
 	 * Filter to short-circuit authentication before password check.
 	 *
-	 * Return a WP_Error to block (e.g. Turnstile failure, IP block).
+	 * Return a WP_Error to block (e.g. request policy failure, IP block).
 	 *
 	 * @param null|WP_Error $blocked    Null to continue, WP_Error to block.
 	 * @param string        $identifier Username or email being authenticated.
@@ -242,14 +246,104 @@ function wp_native_auth_login_with_tokens( string $identifier, string $password,
 		return $pre_login;
 	}
 
+	$login_context = $context;
+
+	$pending_request = array(
+		'pending_request_id' => wp_generate_uuid4(),
+		'user_id'            => (int) $user->ID,
+		'blog_id'            => get_current_blog_id(),
+		'device_id'          => $device_id,
+		'client_id'          => $context['client_id'],
+		'login_context'      => $login_context,
+		'login_options'      => array(
+			'device_name' => $device_name,
+			'remember'    => $remember,
+			'set_cookie'  => $set_cookie,
+		),
+	);
+
+	$challenge_context                       = $login_context;
+	$challenge_context['pending_request_id'] = $pending_request['pending_request_id'];
+
+	foreach ( wp_native_auth_get_challenge_policies() as $policy_id => $policy ) {
+		$challenge = call_user_func( $policy['challenge'], $user, $challenge_context );
+		if ( is_wp_error( $challenge ) ) {
+			return $challenge;
+		}
+
+		if ( null === $challenge ) {
+			continue;
+		}
+
+		if ( 'array' !== gettype( $challenge ) || empty( $challenge['type'] ) || ! is_string( $challenge['type'] ) ) {
+			return new WP_Error( 'invalid_challenge_contract', __( 'Authentication policy returned an invalid challenge.', 'wp-native-auth' ), array( 'status' => 500 ) );
+		}
+
+		$pending_request['policy_id'] = $policy_id;
+		$continuation = wp_native_auth_create_continuation( $pending_request );
+		if ( is_wp_error( $continuation ) ) {
+			return $continuation;
+		}
+
+		return array(
+			'challenge_required'      => true,
+			'challenge_policy'        => $policy_id,
+			'challenge'               => $challenge,
+			'continuation_token'      => $continuation['token'],
+			'continuation_expires_at' => gmdate( 'c', $continuation['expires_at'] ),
+		);
+	}
+
+	return wp_native_auth_complete_login( $user, $device_id, $pending_request['login_options'] );
+}
+
+/**
+ * Mint the session for an already authenticated and policy-approved user.
+ *
+ * @param WP_User             $user      Authenticated user.
+ * @param string              $device_id Device UUID.
+ * @param array<string,mixed> $options   Bound pending login options.
+ * @return array<string,mixed>|WP_Error
+ */
+function wp_native_auth_complete_login( WP_User $user, string $device_id, array $options ) {
+	global $wpdb;
+
+	$device_name = isset( $options['device_name'] ) ? (string) $options['device_name'] : '';
+	$remember    = ! empty( $options['remember'] );
+	$set_cookie  = ! empty( $options['set_cookie'] );
+
+	if ( $set_cookie && headers_sent() ) {
+		return new WP_Error( 'cookie_issuance_failed', __( 'The browsing session could not be established.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
+
+	// Keep refresh persistence rollback-capable until access-token storage has
+	// also succeeded. Cookie side effects happen only after both token stores.
+	if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+		return new WP_Error( 'session_storage_failed', __( 'The session could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
+	$refresh = wp_native_auth_issue_refresh_token( (int) $user->ID, $device_id, $device_name );
+	if ( is_wp_error( $refresh ) ) {
+		$wpdb->query( 'ROLLBACK' );
+		return $refresh;
+	}
+
+	$access = wp_native_auth_generate_access_token( (int) $user->ID, $device_id );
+	if ( is_wp_error( $access ) ) {
+		$wpdb->query( 'ROLLBACK' );
+		return $access;
+	}
+
+	if ( false === $wpdb->query( 'COMMIT' ) ) {
+		$wpdb->query( 'ROLLBACK' );
+		wp_native_auth_revoke_access_token( $access['token'] );
+		return new WP_Error( 'session_storage_failed', __( 'The session could not be stored.', 'wp-native-auth' ), array( 'status' => 500 ) );
+	}
+
 	if ( $set_cookie ) {
 		wp_set_current_user( $user->ID, $user->user_login );
 		wp_set_auth_cookie( $user->ID, $remember );
 		do_action( 'wp_login', $user->user_login, $user );
 	}
-
-	$access  = wp_native_auth_generate_access_token( (int) $user->ID, $device_id );
-	$refresh = wp_native_auth_issue_refresh_token( (int) $user->ID, $device_id, $device_name );
 
 	$token_pair = array(
 		'access_token'       => $access['token'],
@@ -497,6 +591,10 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	$new_token_hash    = wp_native_auth_hash_refresh_token( $new_refresh_token );
 	$new_expires_ts    = $now_ts + $ttl;
 	$new_expires_at    = wp_native_auth_mysql_gmt( $new_expires_ts );
+	$access            = wp_native_auth_generate_access_token( $user_id, $device_id );
+	if ( is_wp_error( $access ) ) {
+		return $access;
+	}
 
 	// ATOMIC ROTATION: a single conditional UPDATE that only succeeds if the
 	// row STILL holds the old hash. InnoDB makes this single statement
@@ -520,6 +618,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	);
 
 	if ( false === $updated ) {
+		wp_native_auth_revoke_access_token( $access['token'] );
 		return new WP_Error(
 			'refresh_update_failed',
 			__( 'Failed to rotate refresh token.', 'wp-native-auth' ),
@@ -532,6 +631,7 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	// this token — burn the family and surface the reuse error rather than
 	// double-minting a second valid pair from the same old token.
 	if ( 0 === (int) $updated ) {
+		wp_native_auth_revoke_access_token( $access['token'] );
 		wp_native_auth_revoke_token_family( $token_family );
 
 		/** This action is documented above (reuse-detection branch). */
@@ -543,8 +643,6 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 			array( 'status' => 401 )
 		);
 	}
-
-	$access = wp_native_auth_generate_access_token( $user_id, $device_id );
 
 	$token_pair = array(
 		'access_token'       => $access['token'],
@@ -915,6 +1013,13 @@ function wp_native_auth_register_with_tokens( string $email, string $password, s
 	// 11. Issue tokens.
 	$access  = wp_native_auth_generate_access_token( $user_id, $device_id );
 	$refresh = wp_native_auth_issue_refresh_token( $user_id, $device_id, $device_name );
+	if ( is_wp_error( $access ) ) {
+		return $access;
+	}
+	if ( is_wp_error( $refresh ) ) {
+		wp_native_auth_revoke_access_token( $access['token'] );
+		return $refresh;
+	}
 
 	$token_pair = array(
 		'access_token'       => $access['token'],

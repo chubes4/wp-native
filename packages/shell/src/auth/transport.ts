@@ -9,6 +9,7 @@
 
 import {
   AuthFetchTransport,
+  FetchTransport,
   WPNativeClient,
 } from 'wp-native-client';
 import type { StoredTokens } from 'wp-native-client';
@@ -101,6 +102,9 @@ export interface AuthStack {
   /** The WPNativeClient wired to the transport. */
   client: WPNativeClient;
 
+  /** Client that never injects, refreshes, or retries session credentials. */
+  preAuthClient: WPNativeClient;
+
   /** Get the persistent device ID (lazy-creates on first call). */
   getDeviceId: () => Promise<string>;
 }
@@ -132,6 +136,12 @@ export function buildAuthStack(
   const transport = new AuthFetchTransport(config);
 
   const client = new WPNativeClient(transport);
+  const preAuthClient = new WPNativeClient(
+    new FetchTransport({
+      baseUrl: api.baseUrl,
+      defaultHeaders: { 'WP-Native-Client': api.clientId },
+    }),
+  );
 
-  return { transport, client, getDeviceId };
+  return { transport, client, preAuthClient, getDeviceId };
 }
