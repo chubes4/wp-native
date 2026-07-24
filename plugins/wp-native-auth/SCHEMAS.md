@@ -69,7 +69,8 @@ and it is acceptable.
 1. **Login/Register** — `wp_native_auth_issue_refresh_token()` writes a fresh hash, a **fresh `token_family`**, and `prev_token_hash = NULL`.
 2. **Refresh** — `wp_native_auth_refresh_tokens()` rotates via an **atomic conditional UPDATE** that matches the old hash, **preserves `token_family`**, parks the old hash in `prev_token_hash`, and extends `expires_at`. 0 rows affected (a concurrent/replayed rotation already won) is treated as reuse.
 3. **Reuse detected** — a token matching `prev_token_hash` (or the 0-rows-affected race) revokes the **entire `token_family`** (`wp_native_auth_revoke_token_family()`), fires `wp_native_auth_refresh_token_reuse_detected`, and returns `refresh_token_reused` (401).
-4. **Logout/Revoke** — `wp_native_auth_revoke_refresh_token()` sets `revoked_at`.
+4. **Logout/Revoke** — `wp_native_auth_revoke_refresh_token()` sets `revoked_at` for one device. `wp_native_auth_revoke_user_refresh_tokens()` atomically sets it for every active device and token family owned by one user.
+5. **Password changes** — the canonical WordPress `wp_set_password` lifecycle invokes user-wide revocation, covering direct password writes, authenticated `wp_update_user()` changes, and `reset_password()`. Existing access tokens are site transients and remain valid only until their normal 15-minute expiry; no revoked refresh token can mint a replacement. User-wide revocation returns the affected-row count (including `0` for an idempotent no-op) or `WP_Error` on storage failure, and emits distinct success/failure actions.
 
 ## Common types referenced below
 

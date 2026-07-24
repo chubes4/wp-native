@@ -52,6 +52,9 @@ require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/external-tokens.php';
 // Token service (login, refresh, revoke, sessions, user payload).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/service.php';
 
+// Password changes end every refresh chain for the affected user.
+add_action( 'wp_set_password', 'wp_native_auth_revoke_refresh_sessions_on_password_change', 10, 2 );
+
 // Bearer token request filter (resolves Authorization header → current user).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/bearer-auth.php';
 
