@@ -2,11 +2,14 @@
 
 Design token primitives for [wp-native](../../README.md).
 
-**Status:** scaffold only. Implementation lands in M5 (see project roadmap).
+**Status:** private placeholder package. The implemented `ThemeProvider`, `useTheme()`, token types, defaults, and merge helpers currently ship from [`wp-native-shell`](../shell/README.md).
 
-## What this package will provide
+This package reserves the standalone `wp-native-theme` boundary in case the neutral token primitives need to be consumed without React Native shell dependencies. It currently exports only `PACKAGE_NAME` and should not be installed by consumers.
 
-- `Tokens` interface — the canonical token shape consumers fill in
-- `<ThemeProvider tokens={...}/>` — RN context provider
-- `useTheme()` — hook for accessing resolved tokens
-- Adapter helpers for `@wordpress/*` token packages
+Use these exports from `wp-native-shell` instead:
+
+- `ThemeTokens`
+- `defaultThemeTokens`
+- `deepMergeTokens()`
+- `<ThemeProvider tokens={...}/>`
+- `useTheme()`

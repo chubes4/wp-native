@@ -1,4 +1,4 @@
-# wp-native-auth — Ability Schemas (M4 Contract)
+# wp-native-auth — Ability Schemas
 
 This document is the **authoritative contract** for every ability the `wp-native-auth` WordPress plugin registers. Implementations MUST match these schemas exactly. The wp-native-client side relies on them.
 
@@ -251,8 +251,8 @@ The policy ID must match `^[a-z0-9][a-z0-9._-]{0,190}$` and the descriptor must
 contain a non-empty string `type`. Integrations must not put secrets in this
 public object. To resume, clients call
 `wp-native/auth-continue-login` with `continuation_token`, the original
-`device_id`, and an arbitrary object `challenge_response`. The
-The continuation dispatches directly to the verifier registered for the stored,
+`device_id`, and an arbitrary object `challenge_response`. The continuation
+dispatches directly to the verifier registered for the stored,
 HMAC-bound `challenge_policy`; unrelated callbacks cannot observe or override
 the result. The verifier receives the bound user, untrusted response, and
 pending request context. It must return boolean `true` to complete login,
@@ -621,15 +621,13 @@ Same as `wp-native/auth-login` output (TokenPair + User).
 
 ---
 
-## NOT in M4 (explicit out-of-scope)
+## Current non-goals
 
-These belong to the framework but ship later:
+These concerns are not provided by the current plugin:
 
-- ❌ **OAuth abilities** (`wp-native/auth.oauth.google`, etc.) — M4.5+ once the base flow is dogfooded
-- ❌ **Password reset** — web-only flow, lives outside the framework
+- **OAuth abilities** (`wp-native/auth-oauth-google`, etc.)
+- **Password reset** — use WordPress's existing browser flow
 - Authentication policy integrations are supplied through extension hooks.
-- ✅ ~~**Browser handoff**~~ — shipped as `wp-native/auth-browser-handoff` in M4.5
-- ✅ ~~**Registration ability**~~ — shipped as `wp-native/auth-register`
 
 ## Extension points (filters and actions)
 
@@ -706,7 +704,7 @@ callback directly rather than passing a mutable result through other policies.
 
 Integration plugins consume these hooks to enforce site authentication and account policy without wp-native-auth knowing implementation details.
 
-## Implementation notes for minions
+## Implementation notes
 
 1. **All abilities live in PHP files under `plugins/wp-native-auth/inc/abilities/`** — one file per ability.
 2. **Ability registration uses `wp_register_ability()`** (the WP 6.9+ Abilities API). Each registration includes the schemas above, the execute callback, and the permission callback.

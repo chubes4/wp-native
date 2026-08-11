@@ -1,181 +1,88 @@
-# wp-native — Roadmap
+# wp-native Roadmap
 
 ## Vision
 
-An open-source npm package + WordPress plugin pair that lets a developer turn **any** modern WordPress site into a real React Native app, with one config file.
+Make the WordPress Abilities API a reusable application backend for decoupled interfaces.
 
-Not a no-code SaaS. Not a WebView wrapper. Not a per-site typed client. A **framework** — the Next.js of WordPress mobile apps.
+`wp-native-client` gives Gutenberg blocks, browsers, React Native applications, and Node processes one generic discovery and execution client. `wp-native-shell` is an optional React Native/Expo layer for applications that need authentication, navigation, theming, browser handoff, and ability-driven screens.
 
-## The principle
+WordPress owns behavior, schemas, data, and permissions. Consumers own presentation and supply site-specific ability names as configuration or call-site data.
 
-> If `wp-native` requires a per-site TypeScript wrapper to be useful, then it isn't a generic framework — it's a templating system that pretends to be one.
+## Principles
 
-A real generic framework either works against any WordPress site with zero per-site code, or admits it's site-specific and stops claiming otherwise. **wp-native chooses option 1.**
+- **Abilities first.** Discover and execute the operations registered by the connected WordPress site.
+- **One generic client.** Site-specific ability names and result types do not become framework wrappers or subclasses.
+- **Multiple interfaces, one behavior surface.** A Gutenberg block and a mobile screen can invoke the same ability through environment-appropriate transports.
+- **Consumer-owned UI.** The framework provides composition primitives and defaults without controlling product routes, branding, or workflows.
+- **WordPress-native authorization.** Ability permission callbacks and the resolved WordPress user remain authoritative.
+- **Strict TypeScript.** Unknown site-defined results are narrowed at consumer boundaries rather than weakened inside the client.
 
-## Architecture: abilities-first
+## Architecture
 
-wp-native is built on the [WordPress Abilities API](https://make.wordpress.org/core/?s=abilities+api) (core in 6.9, deepening in 7.0). The Abilities API is the universal, discoverable, self-describing tool surface for any WordPress site. Mobile apps are just another consumer of it.
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                      wp-native-shell                             │
-│                                                                  │
-│  Generic React Native screens that consume abilities BY NAME.    │
-│  Config tells the shell which ability names map to which UI      │
-│  slots — but the shell never imports a site-specific client.     │
-└────────────────────────┬─────────────────────────────────────────┘
-                         │
-                         ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    wp-native-client (one client)                 │
-│                                                                  │
-│  • discoverAbilities()  → fetches catalog from /abilities        │
-│  • execute(name, args)  → invokes any ability by name            │
-│  • Auth transport       → token lifecycle (only hand-built piece)│
-│  • Optional codegen     → types from ability JSON schemas        │
-│                                                                  │
-│  ONE client. No subclasses. No per-site wrappers.                │
-│  Site-specific abilities are just strings + JSON args.           │
-└────────────────────────┬─────────────────────────────────────────┘
-                         │
-                         ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   WordPress site                                 │
-│                                                                  │
-│  Abilities API (WP 6.9+ core)                                    │
-│    ├── core abilities          (wp/post.*, wp/user.*)            │
-│    ├── plugin abilities        (extrachill/*, woocommerce/*)     │
-│    └── theme abilities         (whatever consumers register)     │
-│                                                                  │
-│  wp-native-auth plugin                                           │
-│    └── token lifecycle  (auth bootstrap — predates discovery)    │
-└──────────────────────────────────────────────────────────────────┘
+```text
+Gutenberg / browser          React Native / Node
+        |                            |
+WpApiFetchTransport      AuthFetchTransport / FetchTransport
+        |                            |
+        +------ wp-native-client ----+
+                    |
+          WordPress Abilities REST API
+                    |
+       Core, plugin, and theme abilities
 ```
 
-## What the consumer config looks like
+`wp-native-client` discovers ability descriptors, validates names when a catalog is loaded, selects execution methods from annotations, and invokes the standard `/wp-abilities/v1/abilities/{name}/run` endpoint. It does not contain Extra Chill or other site-specific knowledge.
 
-```ts
-// extrachill.config.ts
-export const config: WPNativeConfig = {
-  api: {
-    baseUrl: 'https://extrachill.com/wp-json',
-    clientId: 'extrachill-app',
-  },
+## Current State
 
-  brand: {
-    name: 'Extra Chill',
-    welcomeMessage: 'Welcome to Extra Chill!',
-  },
+| Surface | Version | State |
+|---|---:|---|
+| `wp-native-client` | `0.0.2` | Discovery, execution, catalog validation, and fetch/auth/Gutenberg transports implemented |
+| `wp-native-shell` | `0.1.0` | Expo-router provider stack, auth gate, navigation slots, browser handoff, theming, and generic list/detail screens implemented |
+| `wp-native-auth` | `0.2.0` | Nine auth abilities, bearer resolution, device sessions, atomic refresh rotation, replay detection, browser handoff, registration, and policy continuations implemented |
 
-  // UI slots are mapped to ability names — strings, not imports
-  navigation: {
-    sections: [
-      { id: 'feed',    label: 'Feed',    ability: 'wp/post.list' },
-      { id: 'events',  label: 'Events',  ability: 'extrachill/event.calendar' },
-      { id: 'artists', label: 'Artists', ability: 'extrachill/artist.list' },
-      { id: 'forums',  label: 'Forums',  ability: 'extrachill/forum.topics' },
-    ],
-  },
+Known consumers:
 
-  browserHandoff: {
-    handoffHosts: ['extrachill.com', '*.extrachill.com'],
-    excludeHosts: ['*.extrachill.link'],
-  },
+- [`Extra-Chill/extrachill-community`](https://github.com/Extra-Chill/extrachill-community) uses `wp-native-client` and `WpApiFetchTransport` in Gutenberg block frontends.
+- [`Extra-Chill/extrachill-app`](https://github.com/Extra-Chill/extrachill-app) declares `wp-native-client` and `wp-native-shell`; production mounting and real-device verification remain incomplete.
 
-  onboarding: {
-    enabled: true,
-    ability: 'extrachill/user.complete-onboarding',
-    screen: ExtraChillOnboardingScreen,
-  },
-};
-```
+The project remains pre-1.0. Package surfaces may change as the mobile integration is completed and additional consumers exercise the generic boundary.
 
-That's the whole consumer surface. **Data, not code.** EC-specifics are ability names as strings.
+## Next Milestones
 
-## Non-goals (explicit)
+### 1. Complete Mobile Dogfooding
 
-- ❌ WebView wrappers
-- ❌ No-code SaaS app builder
-- ❌ wp-admin inside the app
-- ❌ Per-site typed API client wrappers
-- ❌ Locking consumers into a specific backend / hosting
-- ❌ JavaScript without types — **TypeScript is mandatory across the entire codebase**
+- Mount the shell in `extrachill-app` production routes rather than limiting integration to dependency and import verification.
+- Verify login, refresh, logout, browser handoff, navigation, and ability-driven screens on real iOS and Android devices.
+- Record end-to-end evidence for token persistence, expiry, replay handling, and app restart behavior.
 
-## Language: TypeScript, strict, no exceptions
+### 2. Expand Shared Client Adoption
 
-Every package and every consumer code path is TypeScript with strict mode enabled. The repo's `tsconfig.base.json` turns on the full strict family — `noImplicitAny`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `useUnknownInCatchVariables`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUnusedLocals`, `noUnusedParameters`. No `.js` source files in `packages/*/src`.
+- Migrate suitable Extra Chill web consumers from endpoint-specific clients to `wp-native-client` as their server operations become abilities.
+- Keep multipart uploads and other unsupported wire formats on explicit REST routes until the Abilities API supports their requirements.
+- Retire `@extrachill/api-client` only after its remaining consumers and contracts have been migrated and verified.
 
-Rationale: a framework whose entire job is to model a self-describing API surface (abilities) and feed it into typed React Native components only earns its keep if the type system is enforced end-to-end. JS-with-JSDoc is not an acceptable shortcut.
+### 3. Improve Schema Tooling
 
-## v0.1 scope
+- Generate optional TypeScript types from discovered ability input/output schemas.
+- Add drift checking so generated contracts fail CI when the server schema changes.
+- Preserve the dynamic `execute<TResult, TInput>()` path for consumers that do not want generated code.
 
-**Goal:** A developer can write a config file, point it at any WordPress site running `wp-native-auth` + the Abilities API, and get a running native app with login + a feed driven by the ability they specified.
+### 4. Harden Framework Contracts
 
-| # | Feature | Source |
-|---|---------|--------|
-| 1 | Token auth (login, refresh, logout, /me) | Forked from `extrachill-users` |
-| 2 | Device-scoped session management | Same |
-| 3 | App shell with drawer navigation | Extracted from `extrachill-app` |
-| 4 | Theme system with consumer-supplied tokens | Generalized from `@extrachill/tokens` |
-| 5 | Browser handoff for arbitrary host allowlist | Extracted from `extrachill-app` |
-| 6 | Abilities discovery + `client.execute(name, args)` | NEW |
-| 7 | Generic screens that render ability results | NEW |
-| 8 | Config-driven `<WPNativeApp config={...}/>` wrapper | NEW |
-| 9 | `wp-native-auth` WordPress plugin | Forked from `extrachill-users` |
+- Add high-signal integration coverage for real Abilities REST discovery and execution.
+- Verify compatibility across supported WordPress, React Native, and Expo versions.
+- Stabilize public APIs based on production consumers before a 1.0 release.
 
-### Explicitly NOT in v0.1
+## Non-goals
 
-- WooCommerce integration (consumer-side, via abilities)
-- Forums (bbPress / BuddyPress) — same
-- Push notifications
-- Native Gutenberg authoring
-- Multisite-aware routing (Extra Chill-specific, post-v0.1)
-- Codegen of TypeScript types from ability schemas (post-v0.1 nice-to-have)
+- WebView wrappers
+- A no-code application builder or hosted SaaS
+- Rendering `wp-admin` inside native applications
+- Per-site API client subclasses in the framework
+- Product-specific ability names, schemas, routes, or policy in generic packages
+- Replacing WordPress's data, permission, or ability execution layers
 
-## Milestones
+## Historical Context
 
-| Milestone | Description | Estimate |
-|-----------|-------------|----------|
-| M1 | Repo setup, monorepo scaffold | ✅ done |
-| M2 | Audit Extra Chill coupling, file extraction issues | ✅ done |
-| M3 | `packages/api-client` — abilities discovery + execution + auth transport | ✅ done |
-| M4 | `plugins/wp-native-auth` — token auth WordPress plugin | ✅ done |
-| M5 | `packages/shell` core — Auth + Theme + Drawer + BrowserHandoff + WPNativeApp | ✅ done |
-| M6 | `packages/shell` screens — generic ability-driven list/detail screens | ✅ done |
-| M7 | Migrate `extrachill-app` to consume `wp-native` | 1–2 sessions |
-| M8 | Migrate other `@extrachill/api-client` consumers, retire the package | 1–2 sessions |
-
-**Total: ~9–14 sessions to "Extra Chill running on wp-native, `@extrachill/api-client` retired."**
-
-## Fate of `@extrachill/api-client`
-
-**Retires fully.** Path A.
-
-Today it's a fat package doing two jobs (universal WP plumbing + EC-specific routes). The universal plumbing moves to `wp-native-client`. The EC-specific routes don't get re-implemented — they become **abilities on the WordPress side** that any client consumes via `client.execute('extrachill/...')`.
-
-Migration order:
-1. `extrachill-app` → `wp-native-client` (M7)
-2. `@extrachill/chat` → `wp-native-client` (M8)
-3. EC theme blocks → `wp-native-client` (M8)
-4. Delete `@extrachill/api-client` from npm and the codebase (M8)
-
-This keeps EC route knowledge centralized **on the server**, where it belongs, instead of duplicated across a typed client that every consumer has to depend on.
-
-## Distribution model
-
-For now: **none.** Internal use only.
-
-`extrachill-app` consumes `wp-native` packages via local `file:` deps during development and `git:` deps for committed state. No npm publishing, no docs site, no public launch.
-
-When `wp-native` has been dogfooded on Extra Chill long enough that the framework/consumer seam feels right, distribution becomes a separate decision.
-
-## Why React Native and not [other thing]
-
-Briefly, since this comes up:
-
-- **NativePHP** runs PHP-on-device with WebView UI. Different category — for standalone Laravel apps, not WordPress clients.
-- **Capacitor / Cordova / WebView wrappers** are what AppPresser and MobiLoud do. They're not real native apps.
-- **Flutter** has no WordPress-adjacent ecosystem and no path to share code with Gutenberg blocks.
-- **React Native + Expo** aligns with where WordPress core JS is heading (Gutenberg, Calypso, Site Editor are all React). Consumer knowledge transfers. The `@wordpress/*` packages are React. Native bridges are mature.
-
-The architectural choice is continuous with WordPress's existing direction.
+The original M1-M8 plan established the monorepo, universal client, auth plugin, shell, and generic screens. [`EC-ABILITIES-AUDIT.md`](EC-ABILITIES-AUDIT.md) preserves the May 2, 2026 Extra Chill inventory that informed that work. It is a point-in-time migration artifact, not a current source of truth.
