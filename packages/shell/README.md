@@ -31,12 +31,12 @@ import type { WPNativeConfig } from 'wp-native-shell';
 const config: WPNativeConfig = {
   api: {
     baseUrl: 'https://example.com/wp-json',
+    clientId: 'example-app',
   },
   tokenStorage: {
-    load: async () => null,
-    save: async () => {},
-    clear: async () => {},
-    getDeviceId: async () => 'your-uuid-v4',
+    getItem: async (_key) => null,
+    setItem: async (_key, _value) => {},
+    removeItem: async (_key) => {},
   },
   navigation: {
     sections: [

@@ -1,10 +1,8 @@
 # wp-native-shell — expo-router rebase contract
 
-This document is the **authoritative contract** for migrating `wp-native-shell` from a self-mounted `@react-navigation/drawer` root to a guest of `expo-router`. Implementations must match this spec exactly. The first consumer (`extrachill-app`) and any future React Native consumer code against this surface.
+> **Completed architecture decision.** This document preserves the migration plan from the original drawer-owned shell to the current consumer-owned expo-router model. `wp-native-shell@0.1.0` implements the resulting provider and slot architecture; checklist and version references below are historical execution notes.
 
-If you're a minion implementing a slice: this file is your source of truth. Don't deviate. If something genuinely needs a different shape, surface it as a question to the orchestrator instead of inventing.
-
-Closes [chubes4/wp-native#29](https://github.com/chubes4/wp-native/issues/29). After this lands, ship as `wp-native-shell@0.0.2`.
+This document was the authoritative implementation plan for migrating `wp-native-shell` from a self-mounted `@react-navigation/drawer` root to a guest of `expo-router`. The current public contract lives in [SHELL.md](SHELL.md); the rationale and slices below remain as architecture history for [chubes4/wp-native#29](https://github.com/chubes4/wp-native/issues/29).
 
 ## Why
 
@@ -367,7 +365,7 @@ After all three slices merge:
 - [ ] [chubes4/wp-native#29](https://github.com/chubes4/wp-native/issues/29) closed
 - [ ] [extrachill-app#33](https://github.com/Extra-Chill/extrachill-app/issues/33) (M7.2.5) unblocked
 
-## Implementation rules for minions
+## Historical implementation rules
 
 1. **TypeScript strict mode**. The repo's `tsconfig.base.json` enforces full strict — `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `useUnknownInCatchVariables`. Do not relax it.
 2. **No `any`**. Use `unknown` + narrowing, or proper types. Catch variables typed `unknown`.

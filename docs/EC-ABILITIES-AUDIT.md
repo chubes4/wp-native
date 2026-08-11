@@ -1,5 +1,7 @@
 # EC Abilities Audit (M7 prep)
 
+> **Historical snapshot (2026-05-02).** This inventory records the state that informed the original Extra Chill migration plan; it is not the current adoption status. `wp-native-client@0.0.2` is now used by multiple frontend blocks in [`extrachill-community`](https://github.com/Extra-Chill/extrachill-community), while [`extrachill-app`](https://github.com/Extra-Chill/extrachill-app) declares the mobile client and shell dependencies. Re-run the live ability inventory before making new migration decisions.
+
 Audit of which Extra Chill abilities currently exist on extrachill.com vs what `extrachill-app` and `@extrachill/api-client` consume. The gap drives M7 (the EC migration to wp-native).
 
 **Snapshot date:** 2026-05-02
