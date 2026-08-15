@@ -1,15 +1,15 @@
 # Gutenberg Autolinking Fixture
 
-This fixture gives Expo Modules autolinking a minimal consumer dependency graph without requiring an application checkout.
+This is an isolated Expo SDK 54 application that mounts `GutenbergEditor` and calls `requestContent()` when the editor becomes ready. Its committed lockfile prevents the fixture from resolving incompatible Expo 55 modules from the monorepo root.
 
 From the fixture directory:
 
 ```sh
-npm install --package-lock=false --ignore-scripts
-npx expo-modules-autolinking resolve node_modules --platform apple --project-root . --json
-npx expo-modules-autolinking resolve node_modules --platform android --project-root . --json
-npx expo config --type prebuild --json
-CI=1 npx expo prebuild --no-install --clean
+npm ci
+npm run typecheck
+npm run test:config
+CI=1 npm run prebuild
+npm run test:prebuild
 ```
 
-Both platform results must include `wp-native-gutenberg` and `WPNativeGutenbergModule`. Prebuild must set `ios.deploymentTarget` to `17.0` in `ios/Podfile.properties.json` and write the Automattic repository to `android.extraMavenRepos` in `android/gradle.properties`.
+The checks compile the app entry that mounts `GutenbergEditor` and calls `requestContent()`, require Expo to execute the package config plugin, autolink the package, set `ios.deploymentTarget` to `17.0`, and write the Automattic repository to Android's Gradle properties. Native CI then compiles the generated Android and iOS projects.

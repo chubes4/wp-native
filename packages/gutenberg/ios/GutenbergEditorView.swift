@@ -5,6 +5,12 @@ import ExpoModulesCore
 import GutenbergKit
 import UIKit
 
+private struct WPNativeEditorNotReadyError: LocalizedError {
+  var errorDescription: String? {
+    "The Gutenberg editor is not ready. Wait for onReady before requesting content."
+  }
+}
+
 @MainActor
 final class GutenbergEditorView: ExpoView, EditorViewControllerDelegate {
   let onReady = EventDispatcher()
@@ -139,7 +145,7 @@ final class GutenbergEditorView: ExpoView, EditorViewControllerDelegate {
 
   func requestContent() async throws -> [String: String] {
     guard isReady, let editor else {
-      throw EditorNotReadyError()
+      throw WPNativeEditorNotReadyError()
     }
 
     snapshotGeneration += 1

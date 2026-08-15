@@ -17,3 +17,12 @@ test('configures the supported native build requirements', () => {
     },
   });
 });
+
+test('registers Expo mods for both native platforms', () => {
+  const config = plugin({ name: 'Fixture', slug: 'fixture' });
+
+  assert.ok(config.mods.ios.podfileProperties);
+  assert.ok(config.mods.ios.xcodeproj);
+  assert.ok(config.mods.android.gradleProperties);
+  assert.ok(config.mods.android.settingsGradle);
+});
