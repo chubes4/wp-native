@@ -31,7 +31,11 @@
   ],
   "scripts": {
     "typecheck": "tsc -b",
+    "test": "node --test --test-reporter=tap tests/*.test.mjs",
     "prepublishOnly": "tsc -b"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
   },
   "peerDependencies": {
     "react": ">=19",
