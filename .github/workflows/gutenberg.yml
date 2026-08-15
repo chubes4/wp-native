@@ -19,74 +19,92 @@ on:
       - 'package-lock.json'
       - 'tsconfig.json'
 
+concurrency:
+  group: gutenberg-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   package:
     runs-on: ubuntu-latest
+    env:
+      HOMEBOY_NODE_BUILD_COMMAND: npm ci --prefix ../.. && npm run gate:package && npm run gate:fixture
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run test:gutenberg
-      - run: npm run test:transport
-      - run: npm pack --workspace=wp-native-gutenberg --dry-run
-      - run: npm publish --workspace=wp-native-gutenberg --dry-run
-      - name: Verify isolated Expo fixture and package tarball
-        shell: bash
-        run: |
-          tarball="$(npm pack --workspace=wp-native-gutenberg --pack-destination "$RUNNER_TEMP" --json | node -e "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(input)[0].filename));")"
-          npm ci --prefix fixtures/gutenberg-consumer
-          npm install --prefix fixtures/gutenberg-consumer --no-save --package-lock=false "$RUNNER_TEMP/$tarball"
-          npm run typecheck --prefix fixtures/gutenberg-consumer
-          npm run test:config --prefix fixtures/gutenberg-consumer
-          CI=1 npm run prebuild --prefix fixtures/gutenberg-consumer
-          npm run test:prebuild --prefix fixtures/gutenberg-consumer
+          fetch-depth: 0
+      - uses: Extra-Chill/homeboy-action@v2
+        with:
+          extension: nodejs
+          component: packages/gutenberg
+          commands: review build
+          node-version: '22'
+          scope: full
+          pr-comment: 'false'
+          auto-issue: 'false'
 
   android:
     runs-on: ubuntu-latest
+    env:
+      HOMEBOY_NODE_BUILD_COMMAND: >-
+        npm ci --prefix ../../fixtures/gutenberg-consumer &&
+        CI=1 npm run prebuild --prefix ../../fixtures/gutenberg-consumer -- --platform android &&
+        npm run test:prebuild --prefix ../../fixtures/gutenberg-consumer &&
+        ../../fixtures/gutenberg-consumer/android/gradlew
+        -p ../../fixtures/gutenberg-consumer/android
+        assembleDebug
+        -PreactNativeArchitectures=x86_64
+        --no-daemon
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
         with:
-          node-version: 22
-          cache: npm
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
           cache: gradle
-      - run: npm ci --prefix fixtures/gutenberg-consumer
-      - run: CI=1 npm run prebuild --prefix fixtures/gutenberg-consumer -- --platform android
-      - run: npm run test:prebuild --prefix fixtures/gutenberg-consumer
-      - run: ./gradlew assembleDebug --no-daemon
-        working-directory: fixtures/gutenberg-consumer/android
+      - uses: Extra-Chill/homeboy-action@v2
+        with:
+          extension: nodejs
+          component: packages/gutenberg
+          commands: review build
+          node-version: '22'
+          scope: full
+          execution-timeout-seconds: '1800'
+          pr-comment: 'false'
+          auto-issue: 'false'
 
   ios:
     runs-on: macos-26
+    env:
+      HOMEBOY_NODE_BUILD_COMMAND: >-
+        npm ci --prefix ../../fixtures/gutenberg-consumer &&
+        CI=1 npm run prebuild --prefix ../../fixtures/gutenberg-consumer -- --platform ios &&
+        npm run test:prebuild --prefix ../../fixtures/gutenberg-consumer &&
+        cd ../../fixtures/gutenberg-consumer &&
+        npx --yes pod-install@1.0.9 ios &&
+        cd ios &&
+        xcodebuild
+        -workspace GutenbergAutolinkingFixture.xcworkspace
+        -scheme GutenbergAutolinkingFixture
+        -sdk iphonesimulator
+        -configuration Debug
+        CODE_SIGNING_ALLOWED=NO
+        build
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci --prefix fixtures/gutenberg-consumer
-      - run: CI=1 npm run prebuild --prefix fixtures/gutenberg-consumer -- --platform ios
-      - run: npm run test:prebuild --prefix fixtures/gutenberg-consumer
-      - run: npx --yes pod-install@1.0.9 ios
-        working-directory: fixtures/gutenberg-consumer
-      - name: Compile iOS fixture
-        working-directory: fixtures/gutenberg-consumer/ios
-        run: >-
-          xcodebuild
-          -workspace GutenbergAutolinkingFixture.xcworkspace
-          -scheme GutenbergAutolinkingFixture
-          -sdk iphonesimulator
-          -configuration Debug
-          CODE_SIGNING_ALLOWED=NO
-          build
+          fetch-depth: 0
+      - uses: Extra-Chill/homeboy-action@v2
+        with:
+          extension: nodejs
+          component: packages/gutenberg
+          commands: review build
+          node-version: '22'
+          scope: full
+          execution-timeout-seconds: '1800'
+          pr-comment: 'false'
+          auto-issue: 'false'
