@@ -28,7 +28,7 @@
  *   await transport.initialize(); // loads stored tokens
  */
 
-import type { Transport, TransportRequest } from './types';
+import type { DerivableTransport, TransportRequest } from './types';
 import { ApiError } from './fetch';
 
 /** Token data stored by consumers. */
@@ -42,6 +42,13 @@ export interface StoredTokens {
 export interface AuthFetchTransportConfig {
   /** Base URL for the REST API, e.g. "https://example.com/wp-json" */
   baseUrl: string;
+
+  /**
+   * Alternate REST roots that may receive this transport's bearer token.
+   * Values are matched exactly after URL normalization. The root baseUrl is
+   * always approved; no alternate roots are approved by default.
+   */
+  allowedBaseUrls?: readonly string[];
 
   /**
    * REST path for the token refresh endpoint.
@@ -90,16 +97,24 @@ export interface AuthFetchTransportConfig {
   defaultHeaders?: Record<string, string>;
 }
 
-export class AuthFetchTransport implements Transport {
+export class AuthFetchTransport implements DerivableTransport {
   private config: AuthFetchTransportConfig;
+  private readonly baseUrl: string;
+  private readonly allowedBaseUrls: ReadonlySet<string>;
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private accessExpiresAt: number | null = null;
   private refreshPromise: Promise<boolean> | null = null;
   private initialized = false;
+  private authFailed = false;
 
   constructor(config: AuthFetchTransportConfig) {
     this.config = config;
+    this.baseUrl = normalizeBaseUrl(config.baseUrl);
+    this.allowedBaseUrls = new Set([
+      this.baseUrl,
+      ...(config.allowedBaseUrls ?? []).map(normalizeBaseUrl),
+    ]);
   }
 
   /**
@@ -111,6 +126,7 @@ export class AuthFetchTransport implements Transport {
       this.accessToken = tokens.accessToken;
       this.refreshToken = tokens.refreshToken;
       this.accessExpiresAt = tokens.accessExpiresAt;
+      this.authFailed = false;
     }
     this.initialized = true;
   }
@@ -137,6 +153,7 @@ export class AuthFetchTransport implements Transport {
     this.accessToken = tokens.accessToken;
     this.refreshToken = tokens.refreshToken;
     this.accessExpiresAt = tokens.accessExpiresAt;
+    this.authFailed = false;
     await this.config.saveTokens(tokens);
   }
 
@@ -160,6 +177,22 @@ export class AuthFetchTransport implements Transport {
   }
 
   /**
+   * Scope requests to an approved REST root while sharing this transport's
+   * in-memory tokens, refresh lock, retries, and auth-failure state.
+   */
+  derive(baseUrl: string): DerivableTransport {
+    const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+    if (!this.allowedBaseUrls.has(normalizedBaseUrl)) {
+      throw new Error(`AuthFetchTransport: REST root is not approved: ${normalizedBaseUrl}`);
+    }
+
+    return {
+      request: <T>(req: TransportRequest) => this.requestAt<T>(normalizedBaseUrl, req),
+      derive: (nextBaseUrl: string) => this.derive(nextBaseUrl),
+    };
+  }
+
+  /**
    * Execute an HTTP request with automatic auth handling.
    *
    * - Injects Bearer token if available
@@ -167,6 +200,10 @@ export class AuthFetchTransport implements Transport {
    * - Retries once on 401 after refreshing
    */
   async request<T>(req: TransportRequest): Promise<T> {
+    return this.requestAt<T>(this.baseUrl, req);
+  }
+
+  private async requestAt<T>(baseUrl: string, req: TransportRequest): Promise<T> {
     // Proactive refresh before the request
     if (this.hasTokens() && this.isAccessExpiringSoon()) {
       const refreshed = await this.refreshAccessToken();
@@ -176,17 +213,21 @@ export class AuthFetchTransport implements Transport {
       }
     }
 
+    const requestAccessToken = this.accessToken;
+
     try {
-      return await this.executeRequest<T>(req);
+      return await this.executeRequest<T>(baseUrl, req, requestAccessToken);
     } catch (error) {
       // Retry once on 401 after refresh
       if (error instanceof ApiError && error.status === 401 && this.refreshToken) {
-        const refreshed = await this.refreshAccessToken();
-        if (!refreshed) {
-          await this.handleAuthFailure();
-          throw new ApiError('Session expired', 'session_expired', 401);
+        if (requestAccessToken === this.accessToken) {
+          const refreshed = await this.refreshAccessToken();
+          if (!refreshed) {
+            await this.handleAuthFailure();
+            throw new ApiError('Session expired', 'session_expired', 401);
+          }
         }
-        return await this.executeRequest<T>(req);
+        return await this.executeRequest<T>(baseUrl, req, this.accessToken);
       }
       throw error;
     }
@@ -194,21 +235,26 @@ export class AuthFetchTransport implements Transport {
 
   // ─── Private ───────────────────────────────────────────────────────────
 
-  private async executeRequest<T>(req: TransportRequest): Promise<T> {
-    const url = `${this.config.baseUrl}/${req.path}`;
+  private async executeRequest<T>(
+    baseUrl: string,
+    req: TransportRequest,
+    accessToken: string | null,
+  ): Promise<T> {
+    const url = `${baseUrl}/${req.path}`;
 
     const isFormData = typeof FormData !== 'undefined' && req.body instanceof FormData;
 
     const headers: Record<string, string> = {
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(this.config.defaultHeaders ?? {}),
-      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...req.headers,
     };
 
     const response = await fetch(url, {
       method: req.method,
       headers,
+      redirect: 'error',
       body: req.body
         ? isFormData
           ? (req.body as BodyInit)
@@ -270,11 +316,12 @@ export class AuthFetchTransport implements Transport {
     try {
       const deviceId = await this.config.getDeviceId();
       const refreshPath = this.config.refreshPath ?? 'wp-native/v1/auth/refresh';
-      const url = `${this.config.baseUrl}/${refreshPath}`;
+      const url = `${this.baseUrl}/${refreshPath}`;
 
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        redirect: 'error',
         body: JSON.stringify({
           refresh_token: this.refreshToken,
           device_id: deviceId,
@@ -304,7 +351,31 @@ export class AuthFetchTransport implements Transport {
   }
 
   private async handleAuthFailure(): Promise<void> {
+    if (this.authFailed) return;
+    this.authFailed = true;
     await this.clearAuth();
     this.config.onAuthFailure?.();
   }
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new Error(`AuthFetchTransport: invalid REST root: ${baseUrl}`);
+  }
+
+  if (
+    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.search !== '' ||
+    url.hash !== ''
+  ) {
+    throw new Error(`AuthFetchTransport: invalid REST root: ${baseUrl}`);
+  }
+
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/$/, '');
 }

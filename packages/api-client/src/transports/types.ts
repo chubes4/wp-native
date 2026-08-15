@@ -22,3 +22,8 @@ export interface TransportResponse<T = unknown> {
 export interface Transport {
   request<T>(req: TransportRequest): Promise<T>;
 }
+
+/** A transport that can safely scope requests to another REST root. */
+export interface DerivableTransport extends Transport {
+  derive(baseUrl: string): DerivableTransport;
+}
