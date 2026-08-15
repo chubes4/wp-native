@@ -9,17 +9,23 @@ public final class WPNativeGutenbergModule: Module {
 
     View(GutenbergEditorView.self) {
       Prop("initialTitle") { (view: GutenbergEditorView, title: String) in
-        view.initialTitle = title
+        MainActor.assumeIsolated {
+          view.initialTitle = title
+        }
       }
 
       Prop("initialContent") { (view: GutenbergEditorView, content: String) in
-        view.initialContent = content
+        MainActor.assumeIsolated {
+          view.initialContent = content
+        }
       }
 
       Events("onReady", "onError")
 
       OnViewDidUpdateProps { (view: GutenbergEditorView) in
-        view.loadEditorIfNeeded()
+        MainActor.assumeIsolated {
+          view.loadEditorIfNeeded()
+        }
       }
 
       AsyncFunction("requestContent") { (view: GutenbergEditorView) async throws in

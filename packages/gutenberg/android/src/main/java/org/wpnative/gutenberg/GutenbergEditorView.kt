@@ -85,9 +85,11 @@ class GutenbergEditorView(context: Context, appContext: AppContext) : ExpoView(c
                         return GutenbergView.LatestContent(latest.title, latest.content)
                     }
                 })
-                setContentChangeListener {
-                    scheduleSnapshot()
-                }
+                setContentChangeListener(object : GutenbergView.ContentChangeListener {
+                    override fun onContentChanged() {
+                        scheduleSnapshot()
+                    }
+                })
             }
             hasCreatedEditor = true
             this.editor = editor
