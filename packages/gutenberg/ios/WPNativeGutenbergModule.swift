@@ -8,27 +8,21 @@ public final class WPNativeGutenbergModule: Module {
     Name("WPNativeGutenberg")
 
     View(GutenbergEditorView.self) {
-      Prop("initialTitle") { (view: GutenbergEditorView, title: String) in
-        MainActor.assumeIsolated {
-          view.initialTitle = title
-        }
+      Prop("initialTitle") { @MainActor (view: GutenbergEditorView, title: String) in
+        view.initialTitle = title
       }
 
-      Prop("initialContent") { (view: GutenbergEditorView, content: String) in
-        MainActor.assumeIsolated {
-          view.initialContent = content
-        }
+      Prop("initialContent") { @MainActor (view: GutenbergEditorView, content: String) in
+        view.initialContent = content
       }
 
       Events("onReady", "onError")
 
-      OnViewDidUpdateProps { (view: GutenbergEditorView) in
-        MainActor.assumeIsolated {
-          view.loadEditorIfNeeded()
-        }
+      OnViewDidUpdateProps { @MainActor (view: GutenbergEditorView) in
+        view.loadEditorIfNeeded()
       }
 
-      AsyncFunction("requestContent") { (view: GutenbergEditorView) async throws in
+      AsyncFunction("requestContent") { @MainActor (view: GutenbergEditorView) async throws in
         try await view.requestContent()
       }
     }
