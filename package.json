@@ -15,7 +15,7 @@
   "scripts": {
     "typecheck": "tsc -b",
     "test:gutenberg": "npm run test --workspace=wp-native-gutenberg",
-    "test:transport": "npm run typecheck && node --test packages/api-client/tests/pre-auth-transport.test.mjs",
+    "test:transport": "npm run typecheck && tsx --test packages/api-client/tests/*.test.mjs",
     "typecheck:watch": "tsc -b --watch",
     "clean": "tsc -b --clean"
   },
@@ -23,6 +23,7 @@
     "@react-navigation/drawer": "^7.9.9",
     "@react-navigation/native": "^7.2.2",
     "@types/react": "^19.2.14",
+    "tsx": "^4.23.12",
     "typescript": "^5.7.0"
   }
 }

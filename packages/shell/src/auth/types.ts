@@ -81,6 +81,12 @@ export interface WPNativeApiConfig {
   baseUrl: string;
 
   /**
+   * Exact alternate WordPress REST roots approved to receive this session's
+   * bearer token. Consumers derive site-scoped clients with client.derive().
+   */
+  allowedBaseUrls?: readonly string[];
+
+  /**
    * Client identifier sent as a default header.
    * Maps to e.g. "extrachill-app", "my-app", etc.
    */
@@ -146,7 +152,7 @@ export interface AuthActions {
    */
   clearSessionExpired: () => void;
 
-  /** The underlying WPNativeClient instance for direct ability calls. */
+  /** The client for direct calls; use client.derive() for approved REST roots. */
   client: WPNativeClient;
 }
 

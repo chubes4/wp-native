@@ -1,6 +1,6 @@
 {
   "name": "wp-native-shell",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "React Native app shell for wp-native. expo-router-native: providers + DrawerContent slot + ability-driven screens. Turn any WordPress site into a real native app.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -31,7 +31,11 @@
   ],
   "scripts": {
     "typecheck": "tsc -b",
+    "test": "node --test --test-reporter=tap tests/*.test.mjs",
     "prepublishOnly": "tsc -b"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
   },
   "peerDependencies": {
     "react": ">=19",

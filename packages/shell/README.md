@@ -31,6 +31,7 @@ import type { WPNativeConfig } from 'wp-native-shell';
 const config: WPNativeConfig = {
   api: {
     baseUrl: 'https://example.com/wp-json',
+    allowedBaseUrls: ['https://members.example.com/wp-json'],
     clientId: 'example-app',
   },
   tokenStorage: {
@@ -68,7 +69,7 @@ export default function RootLayout() {
 
 ### Hooks
 
-- **`useAuth()`** — auth state (`user`, `isAuthenticated`, `isLoading`, `sessionExpired`) + actions (`login()`, `logout()`, `refreshSession()`, `client`).
+- **`useAuth()`** — auth state (`user`, `isAuthenticated`, `isLoading`, `sessionExpired`) + actions (`login()`, `logout()`, `refreshSession()`, `client`). Use `client.derive(restRoot)` for roots approved by `api.allowedBaseUrls`.
 - **`useTheme()`** — fully-resolved `ThemeTokens` (colors, typography, spacing, radii).
 - **`useNavigationConfig()`** — the consumer's `WPNativeNavigationConfig` from context.
 - **`useBrowserHandoff()`** — `{ handle(url): Promise<boolean> }` for opening URLs with a session-handoff token.
