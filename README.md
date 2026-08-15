@@ -1,18 +1,21 @@
 # wp-native
 
-**Build decoupled applications on WordPress abilities.** `wp-native-client` is a universal TypeScript client for discovering and executing the [Abilities API](https://make.wordpress.org/core/) from Gutenberg blocks, browsers, React Native, and Node. `wp-native-shell` adds an Expo/React Native app shell, while the `wp-native-auth` plugin provides generic token authentication for headless clients.
+**Build decoupled applications on WordPress abilities.** `wp-native-client` is a universal TypeScript client for discovering and executing the [Abilities API](https://make.wordpress.org/core/) from Gutenberg blocks, browsers, React Native, and Node. `wp-native-shell` adds an Expo/React Native app shell, `wp-native-gutenberg` embeds GutenbergKit, and the `wp-native-auth` plugin provides generic token authentication for headless clients.
 
 WordPress owns the behavior, schemas, data, and permissions. Each consumer owns its UI. The same ability can therefore power a Gutenberg block, a native screen, or another headless application without putting site-specific knowledge into this framework.
 
 ## Status
 
-**Pre-1.0.** The current packages are `wp-native-client@0.0.2`, `wp-native-shell@0.1.0`, and `wp-native-auth@0.2.0`. The client is used by multiple [Extra Chill community Gutenberg block frontends](https://github.com/Extra-Chill/extrachill-community). [extrachill-app](https://github.com/Extra-Chill/extrachill-app) declares the mobile packages, while its current source limits `wp-native` integration to import verification rather than production mounting. APIs may still change before 1.0.
+**Pre-1.0.** The current packages are `wp-native-client@0.0.2`, `wp-native-shell@0.1.0`, `wp-native-gutenberg@0.1.0`, and `wp-native-auth@0.2.0`. The client is used by multiple [Extra Chill community Gutenberg block frontends](https://github.com/Extra-Chill/extrachill-community). APIs may still change before 1.0.
 
 ## Quick install
 
 ```bash
 # React Native app (the common case)
 npm install wp-native-shell wp-native-client
+
+# Add the GutenbergKit block editor to an Expo app
+npm install wp-native-gutenberg
 
 # Gutenberg blocks or Node scripts (no React Native)
 npm install wp-native-client
@@ -120,6 +123,7 @@ wp-native/
 ├── packages/
 │   ├── shell/          wp-native-shell — React Native app shell
 │   ├── api-client/     wp-native-client — universal abilities client
+│   ├── gutenberg/      wp-native-gutenberg — GutenbergKit Expo bridge
 │   ├── meta/           wp-native — meta package (redirects to the real ones)
 │   └── theme/          Design token primitives
 ├── plugins/

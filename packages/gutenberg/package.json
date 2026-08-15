@@ -1,0 +1,58 @@
+{
+  "name": "wp-native-gutenberg",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Expo and React Native bridge for the native GutenbergKit block editor.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "source": "src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./plugin": "./plugin/index.cjs"
+  },
+  "files": [
+    "android",
+    "dist",
+    "ios",
+    "plugin",
+    "src",
+    "expo-module.config.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "GPL-2.0-or-later",
+  "author": "wp-native contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chubes4/wp-native.git",
+    "directory": "packages/gutenberg"
+  },
+  "homepage": "https://github.com/chubes4/wp-native/tree/main/packages/gutenberg",
+  "bugs": "https://github.com/chubes4/wp-native/issues",
+  "keywords": [
+    "wordpress",
+    "gutenberg",
+    "gutenbergkit",
+    "react-native",
+    "expo",
+    "block-editor"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "tsc -b && node --test tests/*.test.*",
+    "prepublishOnly": "tsc -b"
+  },
+  "dependencies": {
+    "expo-build-properties": "~1.0.10"
+  },
+  "peerDependencies": {
+    "expo": "^54.0.0",
+    "expo-modules-core": "^3.0.0",
+    "react": ">=19.1.0 <19.2.0",
+    "react-native": ">=0.81.0 <0.82.0"
+  }
+}

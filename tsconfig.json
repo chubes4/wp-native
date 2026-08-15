@@ -3,6 +3,7 @@
   "include": [],
   "references": [
     { "path": "./packages/api-client" },
+    { "path": "./packages/gutenberg" },
     { "path": "./packages/shell" },
     { "path": "./packages/theme" }
   ]
