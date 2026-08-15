@@ -25,7 +25,12 @@ export type {
 } from './abilities/types';
 
 // Transports
-export type { Transport, TransportRequest, TransportResponse } from './transports/types';
+export type {
+  DerivableTransport,
+  Transport,
+  TransportRequest,
+  TransportResponse,
+} from './transports/types';
 export { FetchTransport, ApiError } from './transports/fetch';
 export type { FetchTransportConfig } from './transports/fetch';
 export { AuthFetchTransport } from './transports/auth-fetch';

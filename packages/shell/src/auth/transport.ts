@@ -125,6 +125,7 @@ export function buildAuthStack(
 
   const config = {
     baseUrl: api.baseUrl,
+    ...(api.allowedBaseUrls !== undefined ? { allowedBaseUrls: api.allowedBaseUrls } : {}),
     getDeviceId,
     defaultHeaders: { 'WP-Native-Client': api.clientId },
     loadTokens: () => loadTokens(storage),

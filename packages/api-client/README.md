@@ -40,6 +40,28 @@ const me = await client.execute('wp-native/auth-me');
 const posts = await client.execute('wp/post.list', { per_page: 20 });
 ```
 
+### Site-scoped clients
+
+An authenticated transport can approve alternate WordPress REST roots. Derived
+clients share its token lifecycle and refresh lock while keeping separate
+ability catalogs:
+
+```ts
+const transport = new AuthFetchTransport({
+  baseUrl: 'https://example.com/wp-json',
+  allowedBaseUrls: ['https://members.example.com/wp-json'],
+  // storage and device callbacks...
+});
+
+const client = new WPNativeClient(transport);
+const membersClient = client.derive('https://members.example.com/wp-json');
+await membersClient.discover();
+```
+
+Alternate roots are denied unless listed exactly in `allowedBaseUrls`. URL
+normalization permits equivalent trailing slashes but not credentials, query
+strings, fragments, relative URLs, non-HTTP protocols, or redirects.
+
 ### Three transports
 
 | Transport | Use when | Import |
@@ -63,7 +85,7 @@ const posts = await client.execute('wp/post.list', { per_page: 10 });
 
 ### Client
 
-- **`WPNativeClient`** — the universal client. Wraps a transport, exposes `discover()`, `execute()`, `executeUnchecked()`, `describe()`, `catalog`.
+- **`WPNativeClient`** — the universal client. Wraps a transport, exposes `discover()`, `execute()`, `executeUnchecked()`, `derive()`, `describe()`, `catalog`.
 - **`WPNativeClientConfig`** — optional config (`validateAbilityNames`).
 
 ### Transports

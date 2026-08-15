@@ -41,7 +41,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -b",
-    "test": "tsc -b && node --test tests/pre-auth-transport.test.mjs",
+    "test": "tsc -b && tsx --test tests/*.test.mjs",
     "prepublishOnly": "tsc -b"
   }
 }

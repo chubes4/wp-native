@@ -28,7 +28,7 @@
  *   const me    = await client.execute<User>('wp-native/user.me');
  */
 
-import type { Transport } from './transports/types';
+import type { DerivableTransport, Transport } from './transports/types';
 import { AbilityCatalog } from './abilities/catalog';
 import { discoverAbilities, encodeAbilityName, fetchAbility } from './abilities/discovery';
 import type {
@@ -63,6 +63,20 @@ export class WPNativeClient {
     this.config = {
       validateAbilityNames: config.validateAbilityNames ?? true,
     };
+  }
+
+  /**
+   * Create a client for another REST root while retaining transport-owned state.
+   *
+   * Each derived client owns an independent ability catalog. The transport
+   * decides which REST roots are approved and which state is safe to share.
+   */
+  derive(baseUrl: string): WPNativeClient {
+    if (!isDerivableTransport(this.transport)) {
+      throw new Error('WPNativeClient: the configured transport does not support derivation.');
+    }
+
+    return new WPNativeClient(this.transport.derive(baseUrl), this.config);
   }
 
   /**
@@ -207,6 +221,10 @@ export class WPNativeClient {
   describe(name: string): AbilityDescriptor | undefined {
     return this._catalog?.get(name);
   }
+}
+
+function isDerivableTransport(transport: Transport): transport is DerivableTransport {
+  return 'derive' in transport && typeof transport.derive === 'function';
 }
 
 function appendQueryValue(
