@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: Extra-Chill/homeboy-action@058545f20ba29a305a11ec8f8fc4eb6c938b97be
+      - uses: Extra-Chill/homeboy-action@5b40b2b0c7167b668e8d4bd5d5ec33fcd124f1a9
         with:
           extension: nodejs
           component: packages/gutenberg
@@ -71,7 +71,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - uses: Extra-Chill/homeboy-action@058545f20ba29a305a11ec8f8fc4eb6c938b97be
+      - uses: Extra-Chill/homeboy-action@5b40b2b0c7167b668e8d4bd5d5ec33fcd124f1a9
         with:
           extension: nodejs
           component: packages/gutenberg
@@ -105,7 +105,7 @@ jobs:
           fetch-depth: 0
       - name: Install modern Bash
         run: brew install bash
-      - uses: Extra-Chill/homeboy-action@058545f20ba29a305a11ec8f8fc4eb6c938b97be
+      - uses: Extra-Chill/homeboy-action@5b40b2b0c7167b668e8d4bd5d5ec33fcd124f1a9
         with:
           extension: nodejs
           component: packages/gutenberg
