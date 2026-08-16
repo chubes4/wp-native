@@ -56,7 +56,10 @@ jobs:
         -p ../../fixtures/gutenberg-consumer/android
         assembleDebug
         -PreactNativeArchitectures=x86_64
-        --no-daemon
+        --no-daemon &&
+        ../../fixtures/gutenberg-consumer/android/gradlew
+        -p ../../fixtures/gutenberg-consumer/android
+        --stop
     steps:
       - uses: actions/checkout@v6
         with:
@@ -98,6 +101,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Install modern Bash
+        run: brew install bash
       - uses: Extra-Chill/homeboy-action@7c48bf65f91756e519898e04c2e51e506ff12d7d
         with:
           extension: nodejs
