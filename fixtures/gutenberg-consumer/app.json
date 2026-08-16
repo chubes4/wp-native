@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Gutenberg Autolinking Fixture",
+    "slug": "gutenberg-autolinking-fixture",
+    "version": "1.0.0",
+    "plugins": ["wp-native-gutenberg/plugin"],
+    "ios": {
+      "bundleIdentifier": "org.wpnative.gutenberg.fixture"
+    },
+    "android": {
+      "package": "org.wpnative.gutenberg.fixture"
+    }
+  }
+}

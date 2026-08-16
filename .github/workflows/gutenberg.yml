@@ -1,0 +1,117 @@
+name: Gutenberg package
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/gutenberg.yml'
+      - 'fixtures/gutenberg-consumer/**'
+      - 'packages/gutenberg/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gutenberg.yml'
+      - 'fixtures/gutenberg-consumer/**'
+      - 'packages/gutenberg/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+
+concurrency:
+  group: gutenberg-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      HOMEBOY_NODE_BUILD_COMMAND: npm ci --prefix ../.. && npm run gate:package && npm run gate:fixture
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: Extra-Chill/homeboy-action@5b40b2b0c7167b668e8d4bd5d5ec33fcd124f1a9
+        with:
+          extension: nodejs
+          component: packages/gutenberg
+          commands: review build
+          node-version: '22'
+          scope: full
+          pr-comment: 'false'
+          auto-issue: 'false'
+
+  android:
+    runs-on: ubuntu-latest
+    env:
+      HOMEBOY_NODE_BUILD_COMMAND: >-
+        npm ci --prefix ../../fixtures/gutenberg-consumer &&
+        CI=1 npm run prebuild --prefix ../../fixtures/gutenberg-consumer -- --platform android &&
+        npm run test:prebuild --prefix ../../fixtures/gutenberg-consumer &&
+        ../../fixtures/gutenberg-consumer/android/gradlew
+        -p ../../fixtures/gutenberg-consumer/android
+        assembleDebug
+        -PreactNativeArchitectures=x86_64
+        -Dkotlin.compiler.execution.strategy=in-process
+        -Dorg.gradle.jvmargs=
+        --no-daemon &&
+        ../../fixtures/gutenberg-consumer/android/gradlew
+        -p ../../fixtures/gutenberg-consumer/android
+        --stop
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: Extra-Chill/homeboy-action@5b40b2b0c7167b668e8d4bd5d5ec33fcd124f1a9
+        with:
+          extension: nodejs
+          component: packages/gutenberg
+          commands: review build
+          node-version: '22'
+          scope: full
+          execution-timeout-seconds: '1800'
+          pr-comment: 'false'
+          auto-issue: 'false'
+
+  ios:
+    runs-on: macos-26
+    env:
+      HOMEBOY_NODE_BUILD_COMMAND: >-
+        npm ci --prefix ../../fixtures/gutenberg-consumer &&
+        CI=1 npm run prebuild --prefix ../../fixtures/gutenberg-consumer -- --platform ios &&
+        npm run test:prebuild --prefix ../../fixtures/gutenberg-consumer &&
+        cd ../../fixtures/gutenberg-consumer &&
+        npx --yes pod-install@1.0.9 ios &&
+        cd ios &&
+        xcodebuild
+        -workspace GutenbergAutolinkingFixture.xcworkspace
+        -scheme GutenbergAutolinkingFixture
+        -sdk iphonesimulator
+        -configuration Debug
+        CODE_SIGNING_ALLOWED=NO
+        build
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install modern Bash
+        run: brew install bash
+      - uses: Extra-Chill/homeboy-action@5b40b2b0c7167b668e8d4bd5d5ec33fcd124f1a9
+        with:
+          extension: nodejs
+          component: packages/gutenberg
+          commands: review build
+          node-version: '22'
+          scope: full
+          execution-timeout-seconds: '1800'
+          pr-comment: 'false'
+          auto-issue: 'false'

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["WPNativeGutenbergModule"]
+  },
+  "android": {
+    "modules": ["org.wpnative.gutenberg.WPNativeGutenbergModule"]
+  }
+}
