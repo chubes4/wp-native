@@ -56,6 +56,8 @@ jobs:
         -p ../../fixtures/gutenberg-consumer/android
         assembleDebug
         -PreactNativeArchitectures=x86_64
+        -Dkotlin.compiler.execution.strategy=in-process
+        -Dorg.gradle.jvmargs=
         --no-daemon &&
         ../../fixtures/gutenberg-consumer/android/gradlew
         -p ../../fixtures/gutenberg-consumer/android

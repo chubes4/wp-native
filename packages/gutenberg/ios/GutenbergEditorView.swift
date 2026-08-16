@@ -12,7 +12,7 @@ private struct WPNativeEditorNotReadyError: LocalizedError {
 }
 
 @MainActor
-final class GutenbergEditorView: ExpoView, EditorViewControllerDelegate {
+final class GutenbergEditorView: ExpoView, EditorViewControllerDelegate, @unchecked Sendable {
   let onReady = EventDispatcher()
   let onError = EventDispatcher()
 
