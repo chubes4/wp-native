@@ -29,7 +29,7 @@ jobs:
         with:
           extension: wordpress
           component: plugins/wp-native-auth
-          commands: review lint review test
+          commands: review lint,review test
           scope: full
           pr-comment: 'false'
           auto-issue: 'false'

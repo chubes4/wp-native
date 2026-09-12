@@ -37,7 +37,7 @@ jobs:
         with:
           extension: nodejs
           component: packages/shell
-          commands: review lint review test
+          commands: review lint,review test
           node-version: '22'
           scope: full
           pr-comment: 'false'
