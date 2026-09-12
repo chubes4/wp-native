@@ -52,7 +52,7 @@ See [`SCHEMAS.md`](SCHEMAS.md) for the authoritative input/output schemas, error
 Run the dependency-free decision-logic test from this directory:
 
 ```bash
-php tests/test-reuse-logic-standalone.php
+php tests/reuse-logic-standalone-smoke.php
 ```
 
-The remaining tests extend `WP_UnitTestCase` and run through a WordPress plugin test harness. The repository does not currently ship its own PHPUnit bootstrap.
+The remaining tests extend `WP_UnitTestCase` and run through the managed Homeboy WordPress test harness in CI (`.github/workflows/wp-native-auth.yml`). The plugin ships no PHPUnit bootstrap of its own — the harness owns it.

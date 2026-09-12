@@ -216,12 +216,28 @@ class Test_WP_Native_Auth_Challenge_Continuations extends WP_UnitTestCase {
 		global $wpdb;
 		$result        = $this->pending_login();
 		$refresh_table = wp_native_auth_refresh_tokens_table_name();
-		$wpdb->query( "DROP TABLE {$refresh_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$failed = $this->continue( $result, array( 'answer' => 'valid' ) );
+
+		// Simulate the storage failure engine-agnostically: reroute the
+		// refresh-token INSERT to a table that does not exist. DROP TABLE is
+		// not portable here — the managed SQLite sandbox rejects it instead
+		// of removing the table, which would silently skip the simulation.
+		$fail_insert = static function ( string $query ) use ( $refresh_table ): string {
+			if ( str_contains( $query, "INSERT INTO `{$refresh_table}`" ) ) {
+				return 'UPDATE wp_native_auth_missing_storage_probe SET revoked_at = 1';
+			}
+
+			return $query;
+		};
+
+		add_filter( 'query', $fail_insert );
+		$previous_suppression = $wpdb->suppress_errors( true );
+		$failed               = $this->continue( $result, array( 'answer' => 'valid' ) );
+		$wpdb->suppress_errors( $previous_suppression );
+		remove_filter( 'query', $fail_insert );
+
 		$this->assertWPError( $failed );
 		$this->assertSame( 'refresh_token_storage_failed', $failed->get_error_code() );
 
-		wp_native_auth_install_refresh_tokens_table();
 		$retry = $this->continue( $result, array( 'answer' => 'valid' ) );
 		$this->assertIsArray( $retry, 'A persistence failure must not burn the continuation.' );
 	}
