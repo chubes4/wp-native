@@ -12,6 +12,12 @@ WP_NATIVE_AUTH_REFRESH_TOKEN_TTL  = 30 * DAY_IN_SECONDS     // sliding, extended
 WP_NATIVE_AUTH_REFRESH_RATE_LIMIT_SECONDS = 5
 WP_NATIVE_AUTH_CONTINUATION_TTL = 5 * MINUTE_IN_SECONDS
 WP_NATIVE_AUTH_CONTINUATION_MAX_ATTEMPTS = 5
+WP_NATIVE_AUTH_OAUTH_CODE_TTL = 120                       // authorization-code lifetime
+WP_NATIVE_AUTH_OAUTH_REQUEST_TTL = 15 * MINUTE_IN_SECONDS // signed consent-request lifetime
+WP_NATIVE_AUTH_OAUTH_REGISTRATION_RATE_LIMIT = 10         // DCR registrations per IP
+WP_NATIVE_AUTH_OAUTH_REGISTRATION_RATE_WINDOW = HOUR_IN_SECONDS
+WP_NATIVE_AUTH_OAUTH_CIMD_CACHE_TTL = 5 * MINUTE_IN_SECONDS
+WP_NATIVE_AUTH_OAUTH_SCOPE = 'account'                    // single, metadata-only scope
 ```
 
 All timestamps in responses are ISO-8601 strings (e.g. `2026-05-02T19:30:00+00:00`) generated via `gmdate( 'c', $unix_ts )`. Inputs that need expiry semantics use Unix seconds where present.
@@ -29,6 +35,8 @@ CREATE TABLE {$table_name} (
   refresh_token_hash char(64) NOT NULL,
   token_family char(36) NULL,
   prev_token_hash char(64) NULL,
+  oauth_client_id varchar(255) NULL,
+  resource varchar(255) NULL,
   created_at datetime NOT NULL,
   last_used_at datetime NULL,
   expires_at datetime NOT NULL,
@@ -37,11 +45,20 @@ CREATE TABLE {$table_name} (
   UNIQUE KEY user_device (user_id, device_id),
   KEY user_id (user_id),
   KEY token_family (token_family),
+  KEY refresh_token_hash (refresh_token_hash),
+  KEY prev_token_hash (prev_token_hash),
   KEY expires_at (expires_at)
 ) {$charset_collate};
 ```
 
 Hash algorithm: `hash( 'sha256', $token, false )` — 64 hex chars. Plaintext refresh tokens are returned to the client exactly once (issue + rotate) and never persisted.
+
+### OAuth grant columns (v5)
+
+- **`oauth_client_id`** (`varchar(255)` NULL) — the generic OAuth 2.1 client identifier an OAuth grant was issued to. NULL for native app sessions. Written at grant issuance and preserved across every rotation. Sized for CIMD client identifiers, which are full HTTPS URLs.
+- **`resource`** (`varchar(255)` NULL) — the RFC 8707 resource audience the grant was consented to. NULL when the client sent no `resource`. Preserved across rotation and copied into each access token's stored payload (`meta.resource`).
+
+The v5 migration also adds the `refresh_token_hash` and `prev_token_hash` indexes so the OAuth token/revoke endpoints can locate a session by presented token hash (current OR superseded) instead of device id.
 
 ### Reuse-detection columns (v2)
 
@@ -58,6 +75,7 @@ compared against the `WP_NATIVE_AUTH_SCHEMA_VERSION` constant in `inc/db.php`:
 - **v2** — refresh-token reuse detection (#55): adds `token_family` + `prev_token_hash`.
 - **v3** — authentication challenge continuations (#63): adds the network-wide `wp_native_auth_login_continuations` table.
 - **v4** — binds continuation state to blog and issuing policy, adds one stable account-policy rate-limit identity, and adds atomic claim fields.
+- **v5** — generic OAuth 2.1 authorization server (#80): adds `oauth_client_id` + `resource` columns and `refresh_token_hash` / `prev_token_hash` indexes to the refresh tokens table, and adds the `wp_native_auth_oauth_clients` and `wp_native_auth_oauth_authorization_codes` tables.
 
 ```sql
 CREATE TABLE {$wpdb->base_prefix}wp_native_auth_login_continuations (
@@ -289,6 +307,209 @@ depend on admin requests. Hourly cleanup removes expired rows in batches of at
 most 500; `deleted_user` removes that user's rows; deactivation clears the cron
 schedule. This ephemeral security state is therefore not a durable privacy
 export record.
+
+---
+
+## OAuth 2.1 authorization server (#80)
+
+The plugin ships a generic OAuth 2.1 authorization server for third-party
+clients. It is host-agnostic: no vendor knowledge, no product branding, and no
+MCP-specific behavior. The branded consent screen is a host concern, replaced
+via the `wp_native_auth_oauth_consent_template` filter.
+
+### Endpoints
+
+Default paths (each filterable through the `wp_native_auth_oauth_routes` path
+map). Requests only take over when WordPress resolved nothing else for the
+path — a real page at a default path keeps being served, and hosts can move
+any endpoint via the filter.
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/.well-known/oauth-protected-resource` | GET | RFC 9728 protected-resource metadata (path-insertion suffixes also served) |
+| `/.well-known/oauth-authorization-server` | GET | RFC 8414 authorization-server metadata |
+| `/authorize` | GET / POST | Consent screen + decision (routes unauthenticated users through normal WordPress login) |
+| `/token` | POST | `authorization_code` + `refresh_token` grants |
+| `/register` | POST | Dynamic client registration (RFC 7591), rate-limited per IP |
+| `/revoke` | POST | RFC 7009 revocation, ownership-checked |
+
+Metadata advertises at minimum:
+
+```json
+{
+  "code_challenge_methods_supported": ["S256"],
+  "token_endpoint_auth_methods_supported": ["none"],
+  "client_id_metadata_document_supported": true,
+  "authorization_response_iss_parameter_supported": true,
+  "grant_types_supported": ["authorization_code", "refresh_token"],
+  "response_types_supported": ["code"],
+  "scopes_supported": ["account"]
+}
+```
+
+### Client model
+
+- **CIMD first.** A `client_id` that is itself an HTTPS URL is resolved by
+  fetching the metadata document hosted there. The document must self-identify
+  with the same URL, its `redirect_uris` must pass the same validation as DCR,
+  and validated documents are cached briefly (filterable; failures are
+  negative-cached for the same window). IP-literal hosts in private/reserved
+  ranges are refused.
+- **DCR fallback.** `POST /register` issues opaque public client ids
+  (`token_endpoint_auth_method: "none"`, no secret — confidential clients are
+  rejected, not silently rewritten). Rate-limited per IP (default 10/hour,
+  filterable).
+
+### Redirect URI validation
+
+Registered URIs must be HTTPS, except `http://localhost`, `http://127.0.0.1`,
+and `http://::1` (RFC 8252 §7.3). Fragments, credentials, and non-HTTP(S)
+schemes are rejected. At authorize/token time the presented URI must match a
+registered URI exactly — with one exception: for http loopback URIs the PORT
+is ignored. Hosts are never interchangeable (`localhost` ≠ `127.0.0.1`), and
+path + query must match exactly.
+
+### Authorization codes
+
+Stored in `{$wpdb->base_prefix}wp_native_auth_oauth_authorization_codes`
+(network-wide):
+
+```sql
+CREATE TABLE {$wpdb->base_prefix}wp_native_auth_oauth_authorization_codes (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  code_hash char(64) NOT NULL,
+  user_id bigint(20) unsigned NOT NULL,
+  client_id varchar(255) NOT NULL,
+  redirect_uri text NOT NULL,
+  code_challenge varchar(128) NOT NULL,
+  code_challenge_method varchar(16) NOT NULL DEFAULT 'S256',
+  resource varchar(255) NULL,
+  scope varchar(64) NULL,
+  claim_token char(64) NULL,
+  claimed_at datetime NULL,
+  created_at datetime NOT NULL,
+  expires_at datetime NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY code_hash (code_hash),
+  KEY user_id (user_id),
+  KEY client_id (client_id),
+  KEY expires_at (expires_at)
+);
+```
+
+- 256-bit opaque codes, persisted as SHA-256 hashes; TTL 120 seconds
+  (`wp_native_auth_oauth_code_ttl` filter).
+- **Single use by atomic claim** (the continuation-claim pattern): one
+  conditional UPDATE sets `claim_token`; concurrent losers see 0 rows and are
+  treated as replay. Client and redirect bindings are checked BEFORE the
+  claim, so wrong-client probing of a live code does not consume it.
+- **PKCE S256 is mandatory and the verifier is required**: an absent or
+  malformed `code_verifier` is `invalid_request` before the code is claimed;
+  a wrong verifier fails PKCE after the claim, so a code allows exactly one
+  verification attempt ever.
+- **Replay revokes.** A second redemption of a claimed code revokes the
+  refresh session the code minted and fires
+  `wp_native_auth_oauth_code_replay_detected`.
+
+### OAuth client registrations
+
+Stored in `{$wpdb->base_prefix}wp_native_auth_oauth_clients`:
+
+```sql
+CREATE TABLE {$wpdb->base_prefix}wp_native_auth_oauth_clients (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  client_id varchar(255) NOT NULL,
+  client_name varchar(191) NULL,
+  client_uri varchar(255) NULL,
+  redirect_uris text NOT NULL,
+  token_endpoint_auth_method varchar(32) NOT NULL DEFAULT 'none',
+  created_at datetime NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY client_id (client_id),
+  KEY created_at (created_at)
+);
+```
+
+### Token issuance and rotation (reuse of the existing session layer)
+
+An OAuth grant is **not** a second token store. Each `(user, client)` pair
+maps onto one row of the existing refresh-token table via a stable,
+UUID-v4-shaped device id derived from a keyed hash
+(`wp_native_auth_oauth_device_id()`). Grant issuance calls the existing
+`wp_native_auth_issue_refresh_token()` with the OAuth bindings; refresh
+grants resolve the presented token by hash (current OR superseded), verify
+the `oauth_client_id` ownership binding, and then delegate to the existing
+`wp_native_auth_refresh_tokens()` — so **rotation, sliding expiry, per-device
+rate limiting, atomic swap, `prev_token_hash` reuse detection, and token-
+family revocation are exactly the pre-existing lifecycle, unchanged.**
+
+Access tokens are the existing opaque site-transient bearers, with the RFC
+8707 resource audience and client binding stored in the token payload
+(`meta.resource`, `meta.client_id`) and carried forward on every rotation.
+Every 401 from the token/revoke endpoints carries
+`WWW-Authenticate: Bearer resource_metadata="<RFC 9728 URL>"`.
+
+### Consent flow
+
+`GET /authorize` validates client + redirect URI first (failures are shown to
+the user directly, never redirected — RFC 6749 §4.1.2.1), then validates
+response type, PKCE challenge, scope, and resource, redirecting
+specification errors back to the client with `error`, `error_description`,
+`state`, and the RFC 9207 `iss` parameter. Unauthenticated users are routed
+through normal WordPress login (preserving the full request URL) so existing
+site authentication policies — including two-factor plugins — keep working
+untouched.
+
+The consent form submits an HMAC-signed, age-limited bundle of the validated
+parameters (bound to the authorizing user via `wp_salt('auth')`), plus a
+nonce. The decision handler verifies nonce, signature, age, and current-user
+identity, re-validates the client, and mints the code. Consent is allow/deny;
+the single scope (`account`) exists for metadata purposes only and issued
+tokens inherit the user's capability set.
+
+### OAuth error envelope
+
+The OAuth endpoints return RFC 6749 §5.2 error JSON (`error` +
+`error_description`) with specification status codes — distinct from the
+ability error envelope below:
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "The authorization code has already been used."
+}
+```
+
+### OAuth filters and actions
+
+```php
+// Endpoint path map (see table above).
+apply_filters( 'wp_native_auth_oauth_routes', array<string,string> $routes );
+
+// Issuer identifier (defaults to the site URL without trailing slash).
+apply_filters( 'wp_native_auth_oauth_issuer', string $issuer );
+
+// Metadata documents.
+apply_filters( 'wp_native_auth_oauth_server_metadata', array $metadata );
+apply_filters( 'wp_native_auth_oauth_protected_resource_metadata', array $metadata );
+
+// Consent template path (hosts supply branded product UI here).
+apply_filters( 'wp_native_auth_oauth_consent_template', string $path, array $args );
+
+// Lifetimes and limits.
+apply_filters( 'wp_native_auth_oauth_code_ttl', int $ttl );
+apply_filters( 'wp_native_auth_oauth_request_ttl', int $ttl );
+apply_filters( 'wp_native_auth_oauth_registration_rate_limit', int $limit );
+apply_filters( 'wp_native_auth_oauth_cimd_cache_ttl', int $ttl );
+
+// Observability.
+do_action( 'wp_native_auth_oauth_grant_issued', int $user_id, string $client_id, string $resource );
+do_action( 'wp_native_auth_oauth_code_replay_detected', int $user_id, string $client_id );
+```
+
+Hourly cleanup of expired codes (`expires_at` older than one day, batches of
+at most 500) shares the existing continuation-cleanup schedule;
+`deleted_user` removes that user's codes.
 
 ---
 

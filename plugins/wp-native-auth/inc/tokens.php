@@ -101,11 +101,17 @@ function wp_native_auth_mysql_gmt( int $ts ): string {
  *
  * The TTL is filterable via `wp_native_auth_access_token_ttl`.
  *
- * @param int    $user_id   User ID the token authenticates.
- * @param string $device_id Device ID (UUID v4).
+ * Optional `$meta` entries (e.g. `resource` for RFC 8707 audience binding,
+ * `client_id` for OAuth grants) are stored alongside the payload so
+ * consumers can later inspect what a token was bound to. Meta never
+ * affects bearer resolution.
+ *
+ * @param int                $user_id   User ID the token authenticates.
+ * @param string             $device_id Device ID (UUID v4).
+ * @param array<string,mixed> $meta     Optional. Extra binding data stored with the token.
  * @return array{token:string, expires_at:int}|WP_Error Plaintext token and Unix expiry.
  */
-function wp_native_auth_generate_access_token( int $user_id, string $device_id ) {
+function wp_native_auth_generate_access_token( int $user_id, string $device_id, array $meta = array() ) {
 	$ttl = (int) apply_filters(
 		'wp_native_auth_access_token_ttl',
 		WP_NATIVE_AUTH_ACCESS_TOKEN_TTL,
@@ -120,13 +126,19 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 	$token_hash = hash( 'sha256', $token );
 	$expires_at = time() + $ttl;
 
+	$payload = array(
+		'user_id'    => $user_id,
+		'device_id'  => $device_id,
+		'expires_at' => $expires_at,
+	);
+
+	if ( array() !== $meta ) {
+		$payload['meta'] = $meta;
+	}
+
 	$stored = set_site_transient(
 		'wp_native_auth_access_' . $token_hash,
-		array(
-			'user_id'    => $user_id,
-			'device_id'  => $device_id,
-			'expires_at' => $expires_at,
-		),
+		$payload,
 		$ttl
 	);
 	$stored = (bool) apply_filters( 'wp_native_auth_access_token_storage_result', $stored, $token_hash, $user_id, $device_id );
@@ -145,6 +157,35 @@ function wp_native_auth_generate_access_token( int $user_id, string $device_id )
 /** Delete a newly issued access token during failed session compensation. */
 function wp_native_auth_revoke_access_token( string $token ): bool {
 	return delete_site_transient( 'wp_native_auth_access_' . hash( 'sha256', $token ) );
+}
+
+/**
+ * Read the stored payload of an access token without resolving a user.
+ *
+ * Used by consumers that must inspect a token's bindings (e.g. OAuth
+ * revocation verifying a presented token belongs to the presenting
+ * client) before acting on it. Returns the raw payload array:
+ * user_id, device_id, expires_at, and the optional meta sub-array.
+ *
+ * @param string $token Plaintext access token.
+ * @return array<string,mixed>|null Payload array, or null when unknown/expired.
+ */
+function wp_native_auth_get_access_token_payload( string $token ): ?array {
+	if ( '' === $token ) {
+		return null;
+	}
+
+	$payload = get_site_transient( 'wp_native_auth_access_' . hash( 'sha256', $token ) );
+
+	if ( ! is_array( $payload ) || empty( $payload['user_id'] ) ) {
+		return null;
+	}
+
+	if ( ! empty( $payload['expires_at'] ) && (int) $payload['expires_at'] < time() ) {
+		return null;
+	}
+
+	return $payload;
 }
 
 /**
