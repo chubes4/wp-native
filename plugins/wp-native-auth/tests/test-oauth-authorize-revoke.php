@@ -69,7 +69,10 @@ class Test_WP_Native_Auth_OAuth_Authorize_Revoke extends WP_UnitTestCase {
 
 		$this->assertTrue( wp_native_auth_oauth_verify_request( $signature, $bundle ) );
 		$this->assertFalse( wp_native_auth_oauth_verify_request( str_repeat( 'a', 64 ), $bundle ) );
-		$this->assertFalse( wp_native_auth_oauth_verify_request( $signature, null ) );
+
+		// Malformed transport encodings decode to null instead of a bundle.
+		$this->assertNull( wp_native_auth_oauth_decode_bundle( '' ) );
+		$this->assertNull( wp_native_auth_oauth_decode_bundle( '####' ) );
 	}
 
 	public function test_consent_bundle_rejects_field_swapping(): void {
