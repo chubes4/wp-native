@@ -45,25 +45,33 @@ if ( ! function_exists( 'wp_native_auth_register_sessions_ability' ) ) {
 							'type'  => 'array',
 							'items' => array(
 								'type'       => 'object',
-								'required'   => array( 'device_id', 'device_name', 'created_at', 'last_used_at', 'expires_at', 'current' ),
+								'required'   => array( 'device_id', 'device_name', 'created_at', 'last_used_at', 'expires_at', 'current', 'oauth_client_id', 'oauth_client_name' ),
 								'properties' => array(
-									'device_id'    => array( 'type' => 'string' ),
-									'device_name'  => array( 'type' => array( 'string', 'null' ) ),
-									'created_at'   => array(
+									'device_id'         => array( 'type' => 'string' ),
+									'device_name'       => array( 'type' => array( 'string', 'null' ) ),
+									'created_at'        => array(
 										'type'   => 'string',
 										'format' => 'date-time',
 									),
-									'last_used_at' => array(
+									'last_used_at'      => array(
 										'type'   => array( 'string', 'null' ),
 										'format' => 'date-time',
 									),
-									'expires_at'   => array(
+									'expires_at'        => array(
 										'type'   => 'string',
 										'format' => 'date-time',
 									),
-									'current'      => array(
+									'current'           => array(
 										'type'        => 'boolean',
 										'description' => 'True if this is the device that made the request.',
+									),
+									'oauth_client_id'   => array(
+										'type'        => array( 'string', 'null' ),
+										'description' => 'OAuth client identifier when the session is an OAuth grant; null for native app sessions.',
+									),
+									'oauth_client_name' => array(
+										'type'        => array( 'string', 'null' ),
+										'description' => 'Human-readable client name recorded when the OAuth grant was created; null for native app sessions.',
 									),
 								),
 							),

@@ -855,6 +855,12 @@ function wp_native_auth_revoke_refresh_sessions_on_password_change( string $_pas
  * token. The shape matches the `auth.sessions` output schema in
  * SCHEMAS.md exactly.
  *
+ * OAuth-bound sessions surface the client binding stored on the row:
+ * `oauth_client_id` is the client the grant was issued to and
+ * `oauth_client_name` is the human-readable label recorded at grant
+ * creation (the client name, or the client id when unnamed). Both are
+ * null for native app sessions.
+ *
  * @param int    $user_id           User ID.
  * @param string $current_device_id Optional. The device making the request,
  *                                  so the matching row gets `current = true`.
@@ -868,7 +874,7 @@ function wp_native_auth_list_user_sessions( int $user_id, string $current_device
 
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			'SELECT device_id, device_name, created_at, last_used_at, expires_at
+			'SELECT device_id, device_name, oauth_client_id, created_at, last_used_at, expires_at
 			 FROM %i
 			 WHERE user_id = %d
 			   AND revoked_at IS NULL
@@ -887,22 +893,33 @@ function wp_native_auth_list_user_sessions( int $user_id, string $current_device
 
 	$sessions = array();
 	foreach ( $rows as $row ) {
-		$device_id    = (string) $row['device_id'];
-		$created_ts   = strtotime( (string) $row['created_at'] . ' UTC' );
-		$expires_ts   = strtotime( (string) $row['expires_at'] . ' UTC' );
-		$last_used_ts = ! empty( $row['last_used_at'] )
+		$device_id       = (string) $row['device_id'];
+		$created_ts      = strtotime( (string) $row['created_at'] . ' UTC' );
+		$expires_ts      = strtotime( (string) $row['expires_at'] . ' UTC' );
+		$last_used_ts    = ! empty( $row['last_used_at'] )
 			? strtotime( (string) $row['last_used_at'] . ' UTC' )
 			: false;
+		$oauth_client_id = ! empty( $row['oauth_client_id'] )
+			? (string) $row['oauth_client_id']
+			: null;
 
 		$sessions[] = array(
-			'device_id'    => $device_id,
-			'device_name'  => null !== $row['device_name'] && '' !== $row['device_name']
+			'device_id'         => $device_id,
+			'device_name'       => null !== $row['device_name'] && '' !== $row['device_name']
 				? (string) $row['device_name']
 				: null,
-			'created_at'   => $created_ts ? gmdate( 'c', (int) $created_ts ) : '',
-			'last_used_at' => $last_used_ts ? gmdate( 'c', (int) $last_used_ts ) : null,
-			'expires_at'   => $expires_ts ? gmdate( 'c', (int) $expires_ts ) : '',
-			'current'      => ( '' !== $current_device_id && $device_id === $current_device_id ),
+			'created_at'        => $created_ts ? gmdate( 'c', (int) $created_ts ) : '',
+			'last_used_at'      => $last_used_ts ? gmdate( 'c', (int) $last_used_ts ) : null,
+			'expires_at'        => $expires_ts ? gmdate( 'c', (int) $expires_ts ) : '',
+			'current'           => ( '' !== $current_device_id && $device_id === $current_device_id ),
+			// The grant path labels OAuth sessions with the client name
+			// (or client id fallback) in the device_name column, so that
+			// label IS the client name for OAuth-bound rows. Native rows
+			// carry a user-facing device name instead and surface null.
+			'oauth_client_id'   => $oauth_client_id,
+			'oauth_client_name' => null !== $oauth_client_id && null !== $row['device_name'] && '' !== $row['device_name']
+				? (string) $row['device_name']
+				: null,
 		);
 	}
 
