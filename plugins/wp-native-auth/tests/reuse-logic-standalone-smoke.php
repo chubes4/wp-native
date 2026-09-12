@@ -48,7 +48,7 @@ $assert   = static function ( bool $cond, string $label ) use ( &$failures ): vo
 		fwrite( STDOUT, "PASS: {$label}\n" );
 	} else {
 		fwrite( STDOUT, "FAIL: {$label}\n" );
-		$failures++;
+		++$failures;
 	}
 };
 

@@ -14,22 +14,22 @@ if ( ! class_exists( 'WP_UnitTestCase' ) ) {
 /** @group auth @group security */
 class Test_WP_Native_Auth_Challenge_Continuations extends WP_UnitTestCase {
 	private int $user_id;
-	private string $device_id = '11111111-1111-4111-8111-111111111111';
+	private string $device_id       = '11111111-1111-4111-8111-111111111111';
 	private string $other_device_id = '22222222-2222-4222-8222-222222222222';
-	private string $password = 'correct horse battery staple';
+	private string $password        = 'correct horse battery staple';
 	private string $original_client = '';
 
 	public function set_up(): void {
 		parent::set_up();
 		wp_native_auth_install_refresh_tokens_table();
-		$this->user_id = self::factory()->user->create(
+		$this->user_id                                = self::factory()->user->create(
 			array(
 				'user_login' => 'challenge-user-' . wp_generate_uuid4(),
 				'user_pass'  => $this->password,
 			)
 		);
-		$this->original_client            = isset( $_SERVER['HTTP_WP_NATIVE_CLIENT'] ) ? (string) $_SERVER['HTTP_WP_NATIVE_CLIENT'] : '';
-		$_SERVER['HTTP_WP_NATIVE_CLIENT'] = 'test-client';
+		$this->original_client                        = isset( $_SERVER['HTTP_WP_NATIVE_CLIENT'] ) ? (string) $_SERVER['HTTP_WP_NATIVE_CLIENT'] : '';
+		$_SERVER['HTTP_WP_NATIVE_CLIENT']             = 'test-client';
 		$GLOBALS['wp_native_auth_challenge_policies'] = array();
 	}
 
@@ -75,8 +75,8 @@ class Test_WP_Native_Auth_Challenge_Continuations extends WP_UnitTestCase {
 			$this->markTestSkipped( 'Multisite required.' );
 		}
 
-		$calls  = 0;
-		$result = $this->pending_login(
+		$calls      = 0;
+		$result     = $this->pending_login(
 			static function () use ( &$calls ): bool {
 				++$calls;
 				return true;
@@ -105,7 +105,7 @@ class Test_WP_Native_Auth_Challenge_Continuations extends WP_UnitTestCase {
 		$wrong_device = wp_native_auth_continue_login( $pending['continuation_token'], $this->other_device_id, array() );
 		$this->assertSame( 'invalid_continuation', $wrong_device->get_error_code() );
 		$_SERVER['HTTP_WP_NATIVE_CLIENT'] = 'other-client';
-		$wrong_client = $this->continue( $pending, array() );
+		$wrong_client                     = $this->continue( $pending, array() );
 		$this->assertSame( 'invalid_continuation', $wrong_client->get_error_code() );
 		$_SERVER['HTTP_WP_NATIVE_CLIENT'] = 'test-client';
 
@@ -334,7 +334,10 @@ class Test_WP_Native_Auth_Challenge_Continuations extends WP_UnitTestCase {
 	private function register_policy( string $policy_id = 'test-policy', $verify = null ): void {
 		wp_native_auth_register_challenge_policy(
 			$policy_id,
-			static fn() => array( 'type' => 'test', 'prompt' => 'Respond.' ),
+			static fn() => array(
+				'type'   => 'test',
+				'prompt' => 'Respond.',
+			),
 			$verify ?? static fn( $user, $response ) => isset( $response['answer'] ) && 'valid' === $response['answer']
 		);
 	}

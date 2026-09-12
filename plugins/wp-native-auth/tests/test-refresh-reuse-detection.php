@@ -186,8 +186,8 @@ class Test_WP_Native_Auth_Refresh_Reuse_Detection extends WP_UnitTestCase {
 
 	private function all_family_rows_revoked( string $family ): bool {
 		global $wpdb;
-		$table   = wp_native_auth_refresh_tokens_table_name();
-		$active  = (int) $wpdb->get_var(
+		$table  = wp_native_auth_refresh_tokens_table_name();
+		$active = (int) $wpdb->get_var(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				"SELECT COUNT(*) FROM {$table} WHERE token_family = %s AND revoked_at IS NULL",

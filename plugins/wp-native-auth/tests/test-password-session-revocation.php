@@ -86,7 +86,7 @@ class Test_WP_Native_Auth_Password_Session_Revocation extends WP_UnitTestCase {
 		// This simulates the storage failure engine-agnostically: a malformed
 		// query string would leave the managed SQLite connection in a state
 		// where subsequent reads (the active-session count below) fail too.
-		$fail_query = static function ( string $query ) use ( $table_name ): string {
+		$fail_query      = static function ( string $query ) use ( $table_name ): string {
 			if ( str_contains( $query, "UPDATE {$table_name} SET revoked_at" ) ) {
 				return 'UPDATE wp_native_auth_missing_storage_probe SET revoked_at = 1';
 			}
