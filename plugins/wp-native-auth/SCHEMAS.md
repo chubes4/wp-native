@@ -670,20 +670,29 @@ Authenticated via Bearer token. The `user_id` is derived from the bearer token, 
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["device_id", "device_name", "created_at", "last_used_at", "expires_at", "current"],
+        "required": ["device_id", "device_name", "created_at", "last_used_at", "expires_at", "current", "oauth_client_id", "oauth_client_name"],
         "properties": {
-          "device_id":    { "type": "string" },
-          "device_name":  { "type": ["string", "null"] },
-          "created_at":   { "type": "string", "format": "date-time" },
-          "last_used_at": { "type": ["string", "null"], "format": "date-time" },
-          "expires_at":   { "type": "string", "format": "date-time" },
-          "current":      { "type": "boolean", "description": "True if this is the device that made the request." }
+          "device_id":         { "type": "string" },
+          "device_name":       { "type": ["string", "null"] },
+          "created_at":        { "type": "string", "format": "date-time" },
+          "last_used_at":      { "type": ["string", "null"], "format": "date-time" },
+          "expires_at":        { "type": "string", "format": "date-time" },
+          "current":           { "type": "boolean", "description": "True if this is the device that made the request." },
+          "oauth_client_id":   { "type": ["string", "null"], "description": "OAuth client identifier when the session is an OAuth grant; null for native app sessions." },
+          "oauth_client_name": { "type": ["string", "null"], "description": "Human-readable client name recorded when the OAuth grant was created; null for native app sessions." }
         }
       }
     }
   }
 }
 ```
+
+The OAuth binding fields are additive (issue #85). `oauth_client_id` mirrors
+the `oauth_client_id` column on the refresh-token row. `oauth_client_name`
+comes from the label the grant path writes onto the session row at creation
+(`inc/oauth-token.php`): the registered client name, or the raw client id
+when the client registered no name. Both are null for native app sessions —
+a null `oauth_client_id` continues to mean "not an OAuth grant".
 
 ---
 
