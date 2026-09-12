@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       wp-native Auth
  * Plugin URI:        https://github.com/chubes4/wp-native
- * Description:       Token-based authentication for WordPress, built for native app consumers. Provides login, refresh, logout, and session abilities via the WP 6.9+ Abilities API.
+ * Description:       Token-based authentication for WordPress, built for native app and third-party OAuth 2.1 clients. Provides login, refresh, logout, and session abilities via the WP 6.9+ Abilities API, plus a generic OAuth 2.1 authorization server (PKCE S256, DCR/CIMD, discovery, revocation).
  * Version:           0.2.0
  * Author:            Chris Huber
  * Author URI:        https://chubes.net
@@ -65,6 +65,10 @@ add_action( 'wp_set_password', 'wp_native_auth_revoke_refresh_sessions_on_passwo
 
 // Bearer token request filter (resolves Authorization header → current user).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/bearer-auth.php';
+
+// Generic OAuth 2.1 authorization server (discovery, DCR/CIMD, authorize,
+// token, revoke — built on the refresh-token lifecycle above).
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth.php';
 
 // Browser handoff token primitives (mint + validate).
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/handoff-tokens.php';

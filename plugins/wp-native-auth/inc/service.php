@@ -28,12 +28,18 @@ require_once __DIR__ . '/tokens.php';
  *
  * The refresh TTL is filterable via `wp_native_auth_refresh_token_ttl`.
  *
- * @param int    $user_id     User ID.
- * @param string $device_id   Device ID (UUID v4).
- * @param string $device_name Optional human-readable device name.
+ * Optional OAuth bindings (`oauth_client_id`, `resource`) associate the
+ * refresh session with a generic OAuth 2.1 client grant. NULL/absent
+ * means a native app session. These bindings are preserved on rotation
+ * (see wp_native_auth_refresh_tokens()).
+ *
+ * @param int                $user_id    User ID.
+ * @param string             $device_id  Device ID (UUID v4).
+ * @param string             $device_name Optional human-readable device name.
+ * @param array<string,mixed> $oauth_meta Optional. { @type string $oauth_client_id @type string $resource }
  * @return array{token:string, expires_at:int}|WP_Error Plaintext token and Unix expiry.
  */
-function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '' ) {
+function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, string $device_name = '', array $oauth_meta = array() ) {
 	global $wpdb;
 
 	$table_name = wp_native_auth_refresh_tokens_table_name();
@@ -79,6 +85,12 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 		'refresh_token_hash' => $token_hash,
 		'token_family'       => $token_family,
 		'prev_token_hash'    => null,
+		'oauth_client_id'    => isset( $oauth_meta['oauth_client_id'] ) && '' !== (string) $oauth_meta['oauth_client_id']
+			? (string) $oauth_meta['oauth_client_id']
+			: null,
+		'resource'           => isset( $oauth_meta['resource'] ) && '' !== (string) $oauth_meta['resource']
+			? (string) $oauth_meta['resource']
+			: null,
 		'last_used_at'       => $now,
 		'expires_at'         => $expires_at,
 		'revoked_at'         => null,
@@ -89,7 +101,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 			$table_name,
 			$data,
 			array( 'id' => (int) $existing_id ),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ),
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ),
 			array( '%d' )
 		);
 	} else {
@@ -97,7 +109,7 @@ function wp_native_auth_issue_refresh_token( int $user_id, string $device_id, st
 		$persisted          = $wpdb->insert(
 			$table_name,
 			$data,
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 	}
 
@@ -582,7 +594,19 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	$new_token_hash    = wp_native_auth_hash_refresh_token( $new_refresh_token );
 	$new_expires_ts    = $now_ts + $ttl;
 	$new_expires_at    = wp_native_auth_mysql_gmt( $new_expires_ts );
-	$access            = wp_native_auth_generate_access_token( $user_id, $device_id );
+
+	// Carry OAuth bindings (client association + RFC 8707 resource
+	// audience) from the refresh session onto the new access token so the
+	// binding survives every rotation. Native sessions carry no bindings.
+	$access_meta = array();
+	if ( ! empty( $session['oauth_client_id'] ) ) {
+		$access_meta['client_id'] = (string) $session['oauth_client_id'];
+	}
+	if ( ! empty( $session['resource'] ) ) {
+		$access_meta['resource'] = (string) $session['resource'];
+	}
+
+	$access = wp_native_auth_generate_access_token( $user_id, $device_id, $access_meta );
 	if ( is_wp_error( $access ) ) {
 		return $access;
 	}
@@ -662,6 +686,43 @@ function wp_native_auth_refresh_tokens( string $refresh_token, string $device_id
 	do_action( 'wp_native_auth_after_refresh', $user_id, $device_id, $token_pair );
 
 	return $response;
+}
+
+/**
+ * Look up a refresh-token session row by the presented token's hash.
+ *
+ * The v5 schema indexes `refresh_token_hash`, so this is an index seek.
+ * Matches both the CURRENT hash and the immediately-superseded
+ * `prev_token_hash` — a replayed just-rotated token must resolve to the
+ * same session so downstream reuse detection can classify it. Used by
+ * consumers that cannot know the device_id up front (the generic OAuth
+ * endpoints identify sessions by token + client binding) and MUST be
+ * followed by a row-ownership check before the row is acted on.
+ *
+ * @param string $refresh_token Plaintext refresh token.
+ * @return array<string,mixed>|null Session row (ARRAY_A) or null when unknown.
+ */
+function wp_native_auth_find_refresh_session_by_token( string $refresh_token ): ?array {
+	global $wpdb;
+
+	if ( '' === $refresh_token ) {
+		return null;
+	}
+
+	$table_name = wp_native_auth_refresh_tokens_table_name();
+	$token_hash = wp_native_auth_hash_refresh_token( $refresh_token );
+
+	$row = $wpdb->get_row(
+		$wpdb->prepare(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table_name is a trusted internal constant.
+			"SELECT * FROM {$table_name} WHERE refresh_token_hash = %s OR prev_token_hash = %s LIMIT 1",
+			$token_hash,
+			$token_hash
+		),
+		ARRAY_A
+	);
+
+	return is_array( $row ) ? $row : null;
 }
 
 /**

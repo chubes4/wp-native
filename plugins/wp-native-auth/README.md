@@ -29,6 +29,28 @@ POST /wp-json/wp-abilities/v1/abilities/wp-native/auth-login/run
 
 Use [`wp-native-client`](../../packages/api-client/README.md) to select the correct HTTP method from each ability's annotations and manage authentication transport.
 
+## OAuth 2.1 authorization server
+
+For third-party clients, the plugin also ships a generic OAuth 2.1 authorization server (no vendor knowledge, no product branding):
+
+```text
+GET  /.well-known/oauth-protected-resource     RFC 9728 metadata
+GET  /.well-known/oauth-authorization-server   RFC 8414 metadata
+GET|POST /authorize                           consent (routes through normal WP login when logged out)
+POST /token                                    authorization_code + refresh_token grants
+POST /register                                 dynamic client registration (rate-limited)
+POST /revoke                                   RFC 7009 revocation
+```
+
+- PKCE `S256` is mandatory; a missing `code_verifier` is rejected outright at the token endpoint.
+- `resource` (RFC 8707) is carried through authorize + token and bound as the token audience.
+- Authorization responses carry `iss` (RFC 9207).
+- Clients resolve CIMD-first (`client_id` is an HTTPS URL hosting metadata), DCR fallback; only public clients (`token_endpoint_auth_method: "none"`) are issued.
+- Redirect URIs match exactly, except port-insensitive matching for http loopback (`localhost` / `127.0.0.1` / `::1`).
+- Consent ships as a minimal template replaced via the `wp_native_auth_oauth_consent_template` filter; branded UI belongs to hosts.
+
+OAuth grants are **not** a second token store: each `(user, client)` pair maps onto a row of the existing per-device refresh-token table (stable derived device id), so refresh rotation, sliding expiry, reuse detection, and token-family revocation are the pre-existing lifecycle. The branded consent screen and Connected Apps management are host-layer concerns.
+
 ## Architecture
 
 - Per-device refresh tokens stored in custom table
@@ -49,7 +71,7 @@ See [`SCHEMAS.md`](SCHEMAS.md) for the authoritative input/output schemas, error
 
 ## Verification
 
-Run the dependency-free decision-logic test from this directory:
+Run the dependency-free tests from this directory:
 
 ```bash
 php tests/reuse-logic-standalone-smoke.php

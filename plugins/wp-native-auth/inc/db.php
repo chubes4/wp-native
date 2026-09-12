@@ -31,8 +31,12 @@ defined( 'ABSPATH' ) || exit;
  *       login continuations table.
  *   4 — binds continuations to blog and policy, adds stable rate-limit
  *       identity and atomic issuance claims.
+ *   5 — generic OAuth 2.1 authorization server (#80): adds oauth_client_id
+ *       and resource columns plus a refresh_token_hash index to the refresh
+ *       tokens table, and adds the OAuth clients and authorization codes
+ *       tables.
  */
-const WP_NATIVE_AUTH_SCHEMA_VERSION = 4;
+const WP_NATIVE_AUTH_SCHEMA_VERSION = 5;
 
 /**
  * Network option key storing the installed schema version.
@@ -64,6 +68,24 @@ function wp_native_auth_continuations_table_name(): string {
 }
 
 /**
+ * Returns the network-wide OAuth client registrations table name.
+ */
+function wp_native_auth_oauth_clients_table_name(): string {
+	global $wpdb;
+
+	return $wpdb->base_prefix . 'wp_native_auth_oauth_clients';
+}
+
+/**
+ * Returns the network-wide OAuth authorization codes table name.
+ */
+function wp_native_auth_oauth_codes_table_name(): string {
+	global $wpdb;
+
+	return $wpdb->base_prefix . 'wp_native_auth_oauth_authorization_codes';
+}
+
+/**
  * Install (or upgrade) the refresh tokens table via dbDelta().
  *
  * Called on plugin activation. Idempotent — dbDelta diffs the existing
@@ -75,6 +97,8 @@ function wp_native_auth_continuations_table_name(): string {
  * The migration is purely additive and backward-compatible:
  *   - `token_family` and `prev_token_hash` are added NULL-able, so existing
  *     rows survive untouched and their current refresh tokens keep working.
+ *   - `oauth_client_id` and `resource` are added NULL-able; NULL means the
+ *     row is a native app session, not an OAuth grant.
  *   - dbDelta() only emits ALTER TABLE ADD COLUMN for the missing columns;
  *     it never drops or rewrites existing data.
  * After dbDelta runs, legacy rows missing a token_family are backfilled
@@ -87,6 +111,8 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 
 	$table_name      = wp_native_auth_refresh_tokens_table_name();
 	$continuations   = wp_native_auth_continuations_table_name();
+	$oauth_clients   = wp_native_auth_oauth_clients_table_name();
+	$oauth_codes     = wp_native_auth_oauth_codes_table_name();
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE {$table_name} (
@@ -97,6 +123,8 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 		refresh_token_hash char(64) NOT NULL,
 		token_family char(36) NULL,
 		prev_token_hash char(64) NULL,
+		oauth_client_id varchar(255) NULL,
+		resource varchar(255) NULL,
 		created_at datetime NOT NULL,
 		last_used_at datetime NULL,
 		expires_at datetime NOT NULL,
@@ -105,6 +133,8 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 		UNIQUE KEY user_device (user_id, device_id),
 		KEY user_id (user_id),
 		KEY token_family (token_family),
+		KEY refresh_token_hash (refresh_token_hash),
+		KEY prev_token_hash (prev_token_hash),
 		KEY expires_at (expires_at)
 	) {$charset_collate};";
 
@@ -135,6 +165,44 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 	) {$charset_collate};";
 
 	dbDelta( $continuations_sql );
+
+	$oauth_clients_sql = "CREATE TABLE {$oauth_clients} (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		client_id varchar(255) NOT NULL,
+		client_name varchar(191) NULL,
+		client_uri varchar(255) NULL,
+		redirect_uris text NOT NULL,
+		token_endpoint_auth_method varchar(32) NOT NULL DEFAULT 'none',
+		created_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		UNIQUE KEY client_id (client_id),
+		KEY created_at (created_at)
+	) {$charset_collate};";
+
+	dbDelta( $oauth_clients_sql );
+
+	$oauth_codes_sql = "CREATE TABLE {$oauth_codes} (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		code_hash char(64) NOT NULL,
+		user_id bigint(20) unsigned NOT NULL,
+		client_id varchar(255) NOT NULL,
+		redirect_uri text NOT NULL,
+		code_challenge varchar(128) NOT NULL,
+		code_challenge_method varchar(16) NOT NULL DEFAULT 'S256',
+		resource varchar(255) NULL,
+		scope varchar(64) NULL,
+		claim_token char(64) NULL,
+		claimed_at datetime NULL,
+		created_at datetime NOT NULL,
+		expires_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		UNIQUE KEY code_hash (code_hash),
+		KEY user_id (user_id),
+		KEY client_id (client_id),
+		KEY expires_at (expires_at)
+	) {$charset_collate};";
+
+	dbDelta( $oauth_codes_sql );
 
 	wp_native_auth_backfill_token_family();
 
