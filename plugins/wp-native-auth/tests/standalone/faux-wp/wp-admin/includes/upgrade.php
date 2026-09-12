@@ -1,0 +1,1 @@
+<?php function dbDelta( $ddl = '' ) { return wpshim_dbDelta( $ddl ); }
