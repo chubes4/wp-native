@@ -103,15 +103,15 @@ function wp_native_auth_oauth_sign_request( array $bundle ): string {
 /**
  * Verify a consent-signed bundle.
  *
- * @param string $signature Stored signature.
- * @param array  $bundle    Bundle as returned by the browser.
+ * Callers must pass a decoded bundle (wp_native_auth_oauth_decode_bundle
+ * handles the null case); this function only answers whether the
+ * signature matches.
+ *
+ * @param string               $signature Stored signature.
+ * @param array<string,mixed>  $bundle    Bundle as returned by the browser.
  * @return bool
  */
-function wp_native_auth_oauth_verify_request( string $signature, $bundle ): bool {
-	if ( ! is_array( $bundle ) ) {
-		return false;
-	}
-
+function wp_native_auth_oauth_verify_request( string $signature, array $bundle ): bool {
 	return hash_equals( wp_native_auth_oauth_sign_request( $bundle ), $signature );
 }
 
@@ -137,7 +137,15 @@ function wp_native_auth_oauth_encode_bundle( array $bundle ): string {
  * @return array<string,mixed>|null
  */
 function wp_native_auth_oauth_decode_bundle( string $encoded ): ?array {
-	$decoded = json_decode( wp_native_auth_base64url_decode( $encoded ), true );
+	$raw = wp_native_auth_base64url_decode( $encoded );
+
+	// base64_decode() returns false for invalid input; reject it (and an
+	// empty decode) explicitly rather than feeding it to json_decode.
+	if ( ! is_string( $raw ) || '' === $raw ) {
+		return null;
+	}
+
+	$decoded = json_decode( $raw, true );
 
 	return is_array( $decoded ) ? $decoded : null;
 }
@@ -155,8 +163,10 @@ function wp_native_auth_oauth_decode_bundle( string $encoded ): ?array {
 function wp_native_auth_oauth_handle_authorize(): void {
 	wp_native_auth_ensure_schema();
 
-	$params = isset( $_GET ) && is_array( $_GET ) ? wp_unslash( $_GET ) : array();
-	$params = is_array( $params ) ? $params : array();
+	// $_GET is a PHP language-level superglobal that is always an array,
+	// and wp_unslash() on an array returns an array — the old
+	// isset()/is_array() guards were dead type-noise, not security guards.
+	$params = wp_unslash( $_GET );
 
 	$client_id    = isset( $params['client_id'] ) ? (string) $params['client_id'] : '';
 	$redirect_uri = isset( $params['redirect_uri'] ) ? (string) $params['redirect_uri'] : '';
@@ -274,7 +284,9 @@ function wp_native_auth_oauth_handle_authorize_decision(): void {
 		wp_native_auth_oauth_send_page_error( __( 'The authorization request is incomplete.', 'wp-native-auth' ), 400 );
 	}
 
-	if ( (int) $bundle['user_id'] !== get_current_user_id() ) {
+	$current_user_id = get_current_user_id();
+
+	if ( (int) $bundle['user_id'] !== $current_user_id ) {
 		wp_native_auth_oauth_send_page_error( __( 'The signed-in account changed before consent was given. Please start the connection again.', 'wp-native-auth' ), 403 );
 	}
 

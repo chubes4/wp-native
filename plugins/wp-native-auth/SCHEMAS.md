@@ -505,6 +505,14 @@ apply_filters( 'wp_native_auth_oauth_cimd_cache_ttl', int $ttl );
 // Observability.
 do_action( 'wp_native_auth_oauth_grant_issued', int $user_id, string $client_id, string $resource );
 do_action( 'wp_native_auth_oauth_code_replay_detected', int $user_id, string $client_id );
+
+// Fired immediately before an endpoint sends its JSON response and
+// terminates the request.
+do_action( 'wp_native_auth_oauth_before_response', array $data, int $status, array $headers );
+
+// Fired immediately before the browser is redirected to an
+// authorization response / login and the request terminates.
+do_action( 'wp_native_auth_oauth_before_redirect', string $url );
 ```
 
 Hourly cleanup of expired codes (`expires_at` older than one day, batches of

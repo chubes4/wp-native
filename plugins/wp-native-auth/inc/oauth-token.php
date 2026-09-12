@@ -114,7 +114,11 @@ function wp_native_auth_oauth_token_from_authorization_code( array $body ): void
 	$grant = wp_native_auth_oauth_exchange_code( $code, (string) $client['client_id'], $redirect_uri, $code_verifier, null !== $client['client_name'] ? $client['client_name'] : '' );
 
 	if ( is_wp_error( $grant ) ) {
-		wp_native_auth_oauth_send_error( $grant->get_error_code(), $grant->get_error_message(), 400 );
+		wp_native_auth_oauth_send_error(
+			wp_native_auth_oauth_error_code( $grant ),
+			$grant->get_error_message(),
+			wp_native_auth_oauth_error_status( $grant )
+		);
 	}
 
 	wp_native_auth_oauth_send_json( $grant );
@@ -193,8 +197,8 @@ function wp_native_auth_oauth_token_from_refresh_token( array $body ): void {
 	$grant = wp_native_auth_oauth_refresh_grant( $refresh_token, (string) $client['client_id'] );
 
 	if ( is_wp_error( $grant ) ) {
-		$status = (int) ( $grant->get_error_data( $grant->get_error_code() )['status'] ?? 400 );
-		$code   = $grant->get_error_code();
+		$code   = wp_native_auth_oauth_error_code( $grant );
+		$status = wp_native_auth_oauth_error_status( $grant );
 
 		// invalid_client → 401 with the Bearer challenge; the rest map
 		// to RFC 6749 token-endpoint errors.

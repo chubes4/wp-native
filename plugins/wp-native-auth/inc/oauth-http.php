@@ -88,6 +88,17 @@ function wp_native_auth_oauth_send_json( array $data, int $status = 200, array $
 		}
 	}
 
+	/**
+	 * Fires immediately before an OAuth endpoint response is sent and the
+	 * request is terminated. Generic observability seam: consumers can
+	 * log endpoint responses without wrapping the endpoints.
+	 *
+	 * @param array<string,mixed>  $data    Response payload.
+	 * @param int                  $status  HTTP status code.
+	 * @param array<string,string> $headers Extra headers.
+	 */
+	do_action( 'wp_native_auth_oauth_before_response', $data, $status, $headers );
+
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON API response body.
 	echo wp_json_encode( $data );
 	exit;
@@ -155,6 +166,36 @@ function wp_native_auth_oauth_send_method_not_allowed( string $allow ): void {
 }
 
 /**
+ * Normalize a WP_Error code into an OAuth error code string.
+ *
+ * WP_Error codes are typed int|string by core; every code this server
+ * constructs is a string, but a foreign WP_Error (from a filter, for
+ * example) could carry anything. Non-string or empty codes map to the
+ * generic RFC 6749 server_error instead of being cast blindly.
+ *
+ * @param WP_Error $error Error to normalize.
+ * @return string OAuth error code.
+ */
+function wp_native_auth_oauth_error_code( WP_Error $error ): string {
+	$code = $error->get_error_code();
+
+	return is_string( $code ) && '' !== $code ? $code : 'server_error';
+}
+
+/**
+ * Read the HTTP status attached to a WP_Error, defaulting to 400.
+ *
+ * @param WP_Error $error Error carrying an optional status code.
+ * @return int
+ */
+function wp_native_auth_oauth_error_status( WP_Error $error ): int {
+	$data  = $error->get_error_data( wp_native_auth_oauth_error_code( $error ) );
+	$value = is_array( $data ) && isset( $data['status'] ) ? $data['status'] : null;
+
+	return is_int( $value ) ? $value : 400;
+}
+
+/**
  * Read the request body as form fields or a JSON object.
  *
  * OAuth clients POST form-encoded bodies; JSON is accepted as a
@@ -176,10 +217,11 @@ function wp_native_auth_oauth_read_body(): array {
 		return is_array( $decoded ) ? $decoded : array();
 	}
 
-	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- endpoint-level validation follows.
-	$body = isset( $_POST ) && is_array( $_POST ) ? wp_unslash( $_POST ) : array();
-
-	return is_array( $body ) ? $body : array();
+	// $_POST is a PHP language-level superglobal that is always an array,
+	// and wp_unslash() on an array returns an array. Nonce verification
+	// is not applicable: OAuth endpoints are validated per-request.
+	// phpcs:ignore WordPress.Security.NonceVerification.Missing
+	return wp_unslash( $_POST );
 }
 
 /**
@@ -249,6 +291,15 @@ function wp_native_auth_oauth_build_error_redirect( string $redirect_uri, string
  * @return never
  */
 function wp_native_auth_oauth_redirect( string $url ): void {
+	/**
+	 * Fires immediately before the browser is redirected to an
+	 * authorization response and the request is terminated. Generic
+	 * observability seam, mirroring wp_native_auth_oauth_before_response.
+	 *
+	 * @param string $url Redirect target.
+	 */
+	do_action( 'wp_native_auth_oauth_before_redirect', $url );
+
 	if ( ! headers_sent() ) {
 		nocache_headers();
 		wp_redirect( $url, 302 );
@@ -277,7 +328,9 @@ function wp_native_auth_oauth_send_page_error( string $message, int $status = 40
 		esc_html( $message ),
 		esc_html__( 'Authorization error', 'wp-native-auth' ),
 		array(
-			'response'  => $status,
+			// The (int) cast satisfies the EscapeOutput sniff honestly:
+			// $status is an HTTP status code, never rendered output.
+			'response'  => (int) $status,
 			'back_link' => false,
 		)
 	);

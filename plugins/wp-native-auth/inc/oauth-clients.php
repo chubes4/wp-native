@@ -92,8 +92,11 @@ function wp_native_auth_oauth_is_loopback_host( string $host ): bool {
  * URIs the port is ignored (the OS assigns an ephemeral port to native
  * app loops; RFC 8252 §7.3). Path and query must still match exactly.
  *
- * @param array<int,string> $registered Registered redirect URIs.
- * @param string            $presented  Redirect URI presented in the request.
+ * @param array<int,mixed> $registered Registered redirect URIs. Items are
+ *                                     expected to be strings; non-string
+ *                                     entries are skipped so callers can
+ *                                     pass freshly-decoded JSON safely.
+ * @param string           $presented  Redirect URI presented in the request.
  * @return bool
  */
 function wp_native_auth_oauth_validate_redirect_uri( array $registered, string $presented ): bool {
@@ -202,6 +205,32 @@ function wp_native_auth_oauth_client_ip(): string {
 	$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
 
 	return '' !== $ip ? $ip : 'unknown';
+}
+
+/**
+ * Handle POST /register — dynamic client registration.
+ *
+ * Transport glue for wp_native_auth_oauth_register_client(): reads the
+ * request body, resolves the client IP, and emits the RFC 7591 response
+ * (201 Created on success) or the mapped error.
+ *
+ * @return never
+ */
+function wp_native_auth_oauth_handle_register(): void {
+	wp_native_auth_ensure_schema();
+
+	$body   = wp_native_auth_oauth_read_body();
+	$result = wp_native_auth_oauth_register_client( $body, wp_native_auth_oauth_client_ip() );
+
+	if ( is_wp_error( $result ) ) {
+		wp_native_auth_oauth_send_error(
+			wp_native_auth_oauth_error_code( $result ),
+			$result->get_error_message(),
+			wp_native_auth_oauth_error_status( $result )
+		);
+	}
+
+	wp_native_auth_oauth_send_json( $result, 201 );
 }
 
 /**
@@ -401,6 +430,35 @@ function wp_native_auth_oauth_resolve_client( string $client_id ): array|WP_Erro
 }
 
 /**
+ * Read the HTTP status code from a wp_remote_get() success payload.
+ *
+ * Read through mixed-typed accessors rather than the stubbed response
+ * shape: filters can mutate the payload in flight, so the defensive
+ * defaults stay real guards instead of type-noise.
+ *
+ * @param array<string,mixed> $response wp_remote_get() success payload.
+ * @return int
+ */
+function wp_native_auth_oauth_http_response_code( array $response ): int {
+	$payload = $response['response'] ?? null;
+	$code    = is_array( $payload ) && isset( $payload['code'] ) ? $payload['code'] : 0;
+
+	return is_int( $code ) ? $code : 0;
+}
+
+/**
+ * Read the body from a wp_remote_get() success payload.
+ *
+ * @param array<string,mixed> $response wp_remote_get() success payload.
+ * @return string Empty string when the payload shape is unexpected.
+ */
+function wp_native_auth_oauth_http_response_body( array $response ): string {
+	$body = $response['body'] ?? null;
+
+	return is_string( $body ) ? $body : '';
+}
+
+/**
  * Fetch and validate a client-id metadata document.
  *
  * The document is fetched from the HTTPS URL that IS the client_id,
@@ -459,8 +517,8 @@ function wp_native_auth_oauth_fetch_cimd( string $url ): array|WP_Error {
 		return new WP_Error( 'invalid_client', __( 'The client metadata document could not be fetched.', 'wp-native-auth' ), array( 'status' => 401 ) );
 	}
 
-	$code = isset( $response['response']['code'] ) ? (int) $response['response']['code'] : 0;
-	$body = isset( $response['body'] ) ? (string) $response['body'] : '';
+	$code = wp_native_auth_oauth_http_response_code( $response );
+	$body = wp_native_auth_oauth_http_response_body( $response );
 
 	if ( $code < 200 || $code >= 300 || '' === $body || strlen( $body ) > 65536 ) {
 		if ( $ttl > 0 ) {
