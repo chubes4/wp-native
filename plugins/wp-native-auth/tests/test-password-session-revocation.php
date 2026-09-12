@@ -82,9 +82,13 @@ class Test_WP_Native_Auth_Password_Session_Revocation extends WP_UnitTestCase {
 
 		$table_name = wp_native_auth_refresh_tokens_table_name();
 		$failure    = null;
-		$fail_query = static function ( string $query ) use ( $table_name ): string {
+		// Reroute the revocation UPDATE to a table that does not exist.
+		// This simulates the storage failure engine-agnostically: a malformed
+		// query string would leave the managed SQLite connection in a state
+		// where subsequent reads (the active-session count below) fail too.
+		$fail_query      = static function ( string $query ) use ( $table_name ): string {
 			if ( str_contains( $query, "UPDATE {$table_name} SET revoked_at" ) ) {
-				return 'INVALID USER-WIDE REVOCATION QUERY';
+				return 'UPDATE wp_native_auth_missing_storage_probe SET revoked_at = 1';
 			}
 
 			return $query;
@@ -92,6 +96,13 @@ class Test_WP_Native_Auth_Password_Session_Revocation extends WP_UnitTestCase {
 		$capture_failure = static function ( int $user_id, WP_Error $error ) use ( &$failure ): void {
 			$failure = array( $user_id, $error );
 		};
+
+		// The wp-phpunit transaction wrapper holds this test's rows
+		// uncommitted, and a failed query can trigger an adapter-level
+		// rollback on the managed SQLite sandbox — which would sweep away
+		// the sessions this test asserts remained active. Commit them so
+		// only the (failed) revocation is in flight.
+		$wpdb->query( 'COMMIT' );
 
 		add_filter( 'query', $fail_query );
 		add_action( 'wp_native_auth_user_refresh_session_revocation_failed', $capture_failure, 10, 2 );

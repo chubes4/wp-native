@@ -46,6 +46,14 @@ class Test_WP_Native_Auth_Refresh_Reuse_Detection extends WP_UnitTestCase {
 		// Ensure the table (with v2 columns) exists for this test DB.
 		wp_native_auth_install_refresh_tokens_table();
 
+		// These suites key refresh lookups on device_id alone, and the
+		// managed sandbox DB does not reliably roll back rows between tests
+		// (test classes share device UUIDs). Clear stale rows so every test
+		// is order-independent.
+		global $wpdb;
+		$wpdb->query( 'DELETE FROM ' . wp_native_auth_refresh_tokens_table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Test table name is trusted.
+		$wpdb->query( 'DELETE FROM ' . wp_native_auth_continuations_table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Test table name is trusted.
+
 		$this->user_id = self::factory()->user->create( array( 'role' => 'subscriber' ) );
 
 		// The 5s per-device rate limit would otherwise block back-to-back
@@ -178,8 +186,8 @@ class Test_WP_Native_Auth_Refresh_Reuse_Detection extends WP_UnitTestCase {
 
 	private function all_family_rows_revoked( string $family ): bool {
 		global $wpdb;
-		$table   = wp_native_auth_refresh_tokens_table_name();
-		$active  = (int) $wpdb->get_var(
+		$table  = wp_native_auth_refresh_tokens_table_name();
+		$active = (int) $wpdb->get_var(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				"SELECT COUNT(*) FROM {$table} WHERE token_family = %s AND revoked_at IS NULL",

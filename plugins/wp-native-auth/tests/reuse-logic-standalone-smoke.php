@@ -12,7 +12,7 @@
  *
  * It is dependency-free so it can run on any PHP CLI:
  *
- *   php tests/test-reuse-logic-standalone.php
+ *   php tests/reuse-logic-standalone-smoke.php
  *
  * Exit code 0 = all assertions passed, 1 = a failure.
  *
@@ -48,7 +48,7 @@ $assert   = static function ( bool $cond, string $label ) use ( &$failures ): vo
 		fwrite( STDOUT, "PASS: {$label}\n" );
 	} else {
 		fwrite( STDOUT, "FAIL: {$label}\n" );
-		$failures++;
+		++$failures;
 	}
 };
 
