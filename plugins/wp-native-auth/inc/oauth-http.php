@@ -302,6 +302,13 @@ function wp_native_auth_oauth_redirect( string $url ): void {
 
 	if ( ! headers_sent() ) {
 		nocache_headers();
+		// wp_safe_redirect() is deliberately NOT used. OAuth redirects go to the
+		// client's registered redirect_uri, which is an external host by
+		// definition — wp_safe_redirect() would rewrite it to the home URL and
+		// break every authorization flow. Safety comes from exact-match
+		// validation against the client's registered URIs before any redirect is
+		// built, never from a host allowlist. exit() follows immediately below.
+		// phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- Registered OAuth redirect_uri; validated upstream.
 		wp_redirect( $url, 302 );
 	}
 

@@ -26,6 +26,7 @@ defined( 'ABSPATH' ) || exit;
  * @param string $scope                Granted scope string.
  * @return array{code:string, expires_at:int} Plaintext code (returned once) and Unix expiry.
  */
+// phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.resourceFound -- `resource` is the RFC 8707 parameter name; renaming it would diverge from the spec.
 function wp_native_auth_oauth_create_authorization_code( int $user_id, string $client_id, string $redirect_uri, string $code_challenge, string $resource = '', string $scope = '' ): array {
 	global $wpdb;
 
@@ -178,9 +179,9 @@ function wp_native_auth_oauth_device_id( int $user_id, string $client_id ): stri
 
 	// Force the UUID v4 version and variant bits so the identifier
 	// satisfies the plugin's device-id validation.
-	$bytes[6]   = chr( ( ord( $bytes[6] ) & 0x0f ) | 0x40 );
-	$bytes[8]   = chr( ( ord( $bytes[8] ) & 0x3f ) | 0x80 );
-	$hex        = bin2hex( $bytes );
+	$bytes[6] = chr( ( ord( $bytes[6] ) & 0x0f ) | 0x40 );
+	$bytes[8] = chr( ( ord( $bytes[8] ) & 0x3f ) | 0x80 );
+	$hex      = bin2hex( $bytes );
 
 	return sprintf(
 		'%s-%s-%s-%s-%s',

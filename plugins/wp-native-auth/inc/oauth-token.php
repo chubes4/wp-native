@@ -275,6 +275,7 @@ function wp_native_auth_oauth_refresh_grant( string $refresh_token, string $clie
  * @param string  $client_name Display name for the session row.
  * @return array<string,mixed>|WP_Error RFC 6749 §5.1 token response payload.
  */
+// phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.resourceFound -- `resource` is the RFC 8707 parameter name; renaming it would diverge from the spec.
 function wp_native_auth_oauth_build_grant( WP_User $user, string $client_id, string $resource, string $scope, string $client_name = '' ): array|WP_Error {
 	$device_id = wp_native_auth_oauth_device_id( (int) $user->ID, $client_id );
 

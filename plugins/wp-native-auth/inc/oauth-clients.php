@@ -503,9 +503,9 @@ function wp_native_auth_oauth_fetch_cimd( string $url ): array|WP_Error {
 	$response = wp_safe_remote_get(
 		$url,
 		array(
-			'timeout'    => 5,
+			'timeout'     => 5,
 			'redirection' => 3,
-			'headers'    => array( 'Accept' => 'application/json' ),
+			'headers'     => array( 'Accept' => 'application/json' ),
 		)
 	);
 
