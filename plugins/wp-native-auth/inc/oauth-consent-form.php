@@ -18,6 +18,16 @@
  *     @type string $bundle           Signed request bundle.
  *     @type string $signature        Bundle signature.
  *     @type string $authorize_action Consent nonce.
+ *     @type string $nonce_action     Optional. Nonce action the decision
+ *                                    handler verifies. Defaults to the
+ *                                    authorization-code consent action;
+ *                                    the device grant (RFC 8628) passes
+ *                                    its own.
+ *     @type bool   $is_device_flow   Optional. True when this consent is
+ *                                    approving a device authorization
+ *                                    request rather than a redirect-based
+ *                                    one — there is no redirect back, so
+ *                                    the wording differs.
  * }
  */
 
@@ -67,8 +77,11 @@ defined( 'ABSPATH' ) || exit;
 		</p>
 	<?php endif; ?>
 	<p><?php esc_html_e( 'Approving grants this application access as your account. You can revoke access at any time.', 'wp-native-auth' ); ?></p>
+	<?php if ( ! empty( $args['is_device_flow'] ) ) : ?>
+		<p><?php esc_html_e( 'Approve only if you just started this connection yourself. The application is waiting on another device and will continue there.', 'wp-native-auth' ); ?></p>
+	<?php endif; ?>
 	<form method="post" action="">
-		<?php wp_nonce_field( 'wp_native_auth_oauth_consent' ); ?>
+		<?php wp_nonce_field( isset( $args['nonce_action'] ) ? (string) $args['nonce_action'] : 'wp_native_auth_oauth_consent' ); ?>
 		<input type="hidden" name="oauth_request" value="<?php echo esc_attr( $args['bundle'] ); ?>">
 		<input type="hidden" name="oauth_signature" value="<?php echo esc_attr( $args['signature'] ); ?>">
 		<div class="actions">

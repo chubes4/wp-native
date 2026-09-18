@@ -76,6 +76,7 @@ compared against the `WP_NATIVE_AUTH_SCHEMA_VERSION` constant in `inc/db.php`:
 - **v3** — authentication challenge continuations (#63): adds the network-wide `wp_native_auth_login_continuations` table.
 - **v4** — binds continuation state to blog and issuing policy, adds one stable account-policy rate-limit identity, and adds atomic claim fields.
 - **v5** — generic OAuth 2.1 authorization server (#80): adds `oauth_client_id` + `resource` columns and `refresh_token_hash` / `prev_token_hash` indexes to the refresh tokens table, and adds the `wp_native_auth_oauth_clients` and `wp_native_auth_oauth_authorization_codes` tables.
+- **v6** — device authorization grant (#91): adds the `wp_native_auth_oauth_device_codes` table. Purely additive — one new table, no change to any existing one, so installs that never use the device grant are unaffected.
 
 ```sql
 CREATE TABLE {$wpdb->base_prefix}wp_native_auth_login_continuations (
@@ -329,9 +330,11 @@ any endpoint via the filter.
 | `/.well-known/oauth-protected-resource` | GET | RFC 9728 protected-resource metadata (path-insertion suffixes also served) |
 | `/.well-known/oauth-authorization-server` | GET | RFC 8414 authorization-server metadata |
 | `/authorize` | GET / POST | Consent screen + decision (routes unauthenticated users through normal WordPress login) |
-| `/token` | POST | `authorization_code` + `refresh_token` grants |
+| `/token` | POST | `authorization_code` + `refresh_token` + `device_code` grants |
 | `/register` | POST | Dynamic client registration (RFC 7591), rate-limited per IP |
 | `/revoke` | POST | RFC 7009 revocation, ownership-checked |
+| `/device_authorization` | POST | RFC 8628 device authorization request |
+| `/device` | GET / POST | User-code entry + consent (routes unauthenticated users through normal WordPress login) |
 
 Metadata advertises at minimum:
 
@@ -341,9 +344,14 @@ Metadata advertises at minimum:
   "token_endpoint_auth_methods_supported": ["none"],
   "client_id_metadata_document_supported": true,
   "authorization_response_iss_parameter_supported": true,
-  "grant_types_supported": ["authorization_code", "refresh_token"],
+  "grant_types_supported": [
+    "authorization_code",
+    "refresh_token",
+    "urn:ietf:params:oauth:grant-type:device_code"
+  ],
   "response_types_supported": ["code"],
-  "scopes_supported": ["account"]
+  "scopes_supported": ["account"],
+  "device_authorization_endpoint": "https://example.com/device_authorization"
 }
 ```
 
@@ -430,6 +438,78 @@ CREATE TABLE {$wpdb->base_prefix}wp_native_auth_oauth_clients (
 );
 ```
 
+### Device authorization grant (#91)
+
+For clients that cannot receive a redirect at all — a CLI on a VPS, a
+container, a CI runner, a TV app, an agent sandbox. The browser and the
+client are on different machines, so no redirect (not even loopback) can
+carry the authorization response back.
+
+Stored in `{$wpdb->base_prefix}wp_native_auth_oauth_device_codes`
+(network-wide):
+
+```sql
+CREATE TABLE {$wpdb->base_prefix}wp_native_auth_oauth_device_codes (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  device_code_hash char(64) NOT NULL,
+  user_code_hash char(64) NOT NULL,
+  client_id varchar(255) NOT NULL,
+  user_id bigint(20) unsigned NULL,
+  grant_status varchar(16) NOT NULL DEFAULT 'pending',
+  resource varchar(255) NULL,
+  scope varchar(64) NULL,
+  poll_interval smallint(5) unsigned NOT NULL DEFAULT 5,
+  last_polled_at datetime NULL,
+  claim_token char(64) NULL,
+  claimed_at datetime NULL,
+  created_at datetime NOT NULL,
+  expires_at datetime NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY device_code_hash (device_code_hash),
+  UNIQUE KEY user_code_hash (user_code_hash),
+  KEY user_id (user_id),
+  KEY client_id (client_id),
+  KEY expires_at (expires_at)
+);
+```
+
+`INTERVAL` is a reserved word in MySQL, so the RFC's `interval` field is
+stored as `poll_interval`; `status` is stored as `grant_status` for
+symmetry. `user_id` is NULL until someone approves — a pending request
+belongs to no user yet.
+
+- **Two secrets, two jobs.** `device_code` is a 256-bit opaque bearer held
+  by the client that never transits the browser. `user_code` is short and
+  human-transcribable (8 characters over a 22-character alphabet with no
+  vowels and no ambiguous glyphs, displayed `XXXX-XXXX`). Both are stored
+  as SHA-256 hashes, the user code under a distinct domain prefix.
+- **No PKCE, deliberately.** This grant has no authorization response and
+  no redirect leg, so there is no code-interception attack for PKCE to
+  bind against; RFC 8628 defines no `code_challenge` and clients send
+  none. Requiring one would reject every spec-compliant device client.
+  Single-use atomic claim, client binding, and a 10-minute TTL carry the
+  security here.
+- **Input is forgiving** (RFC 8628 §6.1): case is folded and every
+  character outside the alphabet is discarded, so `wdjb-mjht`,
+  `WDJB MJHT`, and `WDJBMJHT` are the same code. Wrong-length input is
+  rejected outright, never padded or truncated.
+- **Brute force is bounded** (RFC 8628 §5.2): ~35.7 bits of user-code
+  entropy is only safe alongside the short TTL and a per-IP attempt limit
+  on the verification screen (default 20 per 15 minutes, filterable).
+- **Polling follows RFC 8628 §3.5** in this order: unknown code →
+  `invalid_grant`; wrong client → `invalid_grant` *before any state
+  change*, so one client cannot consume or throttle another's request;
+  expired → `expired_token`; too fast → `slow_down`, and the stored
+  interval grows by 5 seconds; denied → `access_denied`; pending →
+  `authorization_pending`; approved → atomic claim, exactly once.
+- **Decisions are conditional UPDATEs** on the row still being `pending`
+  and unexpired, so a double submission or a second browser tab cannot
+  flip an already-decided request.
+- Token issuance is the shared `wp_native_auth_oauth_build_grant()` path,
+  so a device grant lands on the same refresh-session row — with the same
+  rotation and reuse detection — as a code grant for the same
+  `(user, client)` pair.
+
 ### Token issuance and rotation (reuse of the existing session layer)
 
 An OAuth grant is **not** a second token store. Each `(user, client)` pair
@@ -493,18 +573,29 @@ apply_filters( 'wp_native_auth_oauth_issuer', string $issuer );
 apply_filters( 'wp_native_auth_oauth_server_metadata', array $metadata );
 apply_filters( 'wp_native_auth_oauth_protected_resource_metadata', array $metadata );
 
-// Consent template path (hosts supply branded product UI here).
+// Consent template path (hosts supply branded product UI here). The
+// device grant renders this same screen with its own nonce action and an
+// `is_device_flow` marker, so branding it brands both flows.
 apply_filters( 'wp_native_auth_oauth_consent_template', string $path, array $args );
+
+// Device-flow template paths.
+apply_filters( 'wp_native_auth_oauth_device_form_template', string $path, array $args );
+apply_filters( 'wp_native_auth_oauth_device_result_template', string $path, array $args );
 
 // Lifetimes and limits.
 apply_filters( 'wp_native_auth_oauth_code_ttl', int $ttl );
 apply_filters( 'wp_native_auth_oauth_request_ttl', int $ttl );
 apply_filters( 'wp_native_auth_oauth_registration_rate_limit', int $limit );
 apply_filters( 'wp_native_auth_oauth_cimd_cache_ttl', int $ttl );
+apply_filters( 'wp_native_auth_oauth_device_code_ttl', int $ttl );
+apply_filters( 'wp_native_auth_oauth_device_poll_interval', int $seconds );
+apply_filters( 'wp_native_auth_oauth_device_verify_rate_limit', int $limit );
 
 // Observability.
 do_action( 'wp_native_auth_oauth_grant_issued', int $user_id, string $client_id, string $resource );
 do_action( 'wp_native_auth_oauth_code_replay_detected', int $user_id, string $client_id );
+do_action( 'wp_native_auth_oauth_device_authorization_issued', string $client_id, string $resource );
+do_action( 'wp_native_auth_oauth_device_approved', int $user_id, string $client_id );
 
 // Fired immediately before an endpoint sends its JSON response and
 // terminates the request.
@@ -515,9 +606,10 @@ do_action( 'wp_native_auth_oauth_before_response', array $data, int $status, arr
 do_action( 'wp_native_auth_oauth_before_redirect', string $url );
 ```
 
-Hourly cleanup of expired codes (`expires_at` older than one day, batches of
-at most 500) shares the existing continuation-cleanup schedule;
-`deleted_user` removes that user's codes.
+Hourly cleanup of expired authorization codes and device codes (`expires_at`
+older than one day, batches of at most 500) shares the existing
+continuation-cleanup schedule; `deleted_user` removes that user's codes and
+device codes.
 
 ---
 

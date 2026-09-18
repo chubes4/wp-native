@@ -346,7 +346,11 @@ function wp_native_auth_oauth_handle_authorize_decision(): void {
  * the intended seam for branded product UI — that UI does not belong
  * in this generic layer.
  *
- * @param array<string,mixed> $args View args (client_name, client_uri, client_id, scope, resource, bundle, signature, authorize_action).
+ * Shared with the RFC 8628 device grant, which renders the same screen
+ * with its own nonce action and an `is_device_flow` marker — one consent
+ * UI for both flows, so a host that brands it brands both.
+ *
+ * @param array<string,mixed> $args View args (client_name, client_uri, client_id, scope, resource, bundle, signature, authorize_action, and optionally nonce_action + is_device_flow).
  * @return never
  */
 function wp_native_auth_oauth_render_consent( array $args ): void {

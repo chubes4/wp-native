@@ -35,8 +35,11 @@ defined( 'ABSPATH' ) || exit;
  *       and resource columns plus a refresh_token_hash index to the refresh
  *       tokens table, and adds the OAuth clients and authorization codes
  *       tables.
+ *   6 — device authorization grant (#91): adds the OAuth device codes
+ *       table. Purely additive — a new table, no change to any existing
+ *       one, so installs that never use the device grant are unaffected.
  */
-const WP_NATIVE_AUTH_SCHEMA_VERSION = 5;
+const WP_NATIVE_AUTH_SCHEMA_VERSION = 6;
 
 /**
  * Network option key storing the installed schema version.
@@ -86,6 +89,15 @@ function wp_native_auth_oauth_codes_table_name(): string {
 }
 
 /**
+ * Returns the network-wide OAuth device codes table name.
+ */
+function wp_native_auth_oauth_device_codes_table_name(): string {
+	global $wpdb;
+
+	return $wpdb->base_prefix . 'wp_native_auth_oauth_device_codes';
+}
+
+/**
  * Install (or upgrade) the refresh tokens table via dbDelta().
  *
  * Called on plugin activation. Idempotent — dbDelta diffs the existing
@@ -113,6 +125,7 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 	$continuations   = wp_native_auth_continuations_table_name();
 	$oauth_clients   = wp_native_auth_oauth_clients_table_name();
 	$oauth_codes     = wp_native_auth_oauth_codes_table_name();
+	$device_codes    = wp_native_auth_oauth_device_codes_table_name();
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE {$table_name} (
@@ -203,6 +216,42 @@ function wp_native_auth_install_refresh_tokens_table(): void {
 	) {$charset_collate};";
 
 	dbDelta( $oauth_codes_sql );
+
+	/*
+	 * Device authorization grant (RFC 8628).
+	 *
+	 * Column naming note: the RFC calls these fields `interval` and the row
+	 * state is conceptually `status`, but `INTERVAL` is a reserved word in
+	 * MySQL. Both are prefixed (`poll_interval`, `grant_status`) so the
+	 * schema needs no backtick-quoting anywhere it is referenced.
+	 *
+	 * `user_id` is NULL until someone approves: a pending request belongs to
+	 * no user yet, which is exactly what distinguishes it from a code grant.
+	 */
+	$device_codes_sql = "CREATE TABLE {$device_codes} (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		device_code_hash char(64) NOT NULL,
+		user_code_hash char(64) NOT NULL,
+		client_id varchar(255) NOT NULL,
+		user_id bigint(20) unsigned NULL,
+		grant_status varchar(16) NOT NULL DEFAULT 'pending',
+		resource varchar(255) NULL,
+		scope varchar(64) NULL,
+		poll_interval smallint(5) unsigned NOT NULL DEFAULT 5,
+		last_polled_at datetime NULL,
+		claim_token char(64) NULL,
+		claimed_at datetime NULL,
+		created_at datetime NOT NULL,
+		expires_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		UNIQUE KEY device_code_hash (device_code_hash),
+		UNIQUE KEY user_code_hash (user_code_hash),
+		KEY user_id (user_id),
+		KEY client_id (client_id),
+		KEY expires_at (expires_at)
+	) {$charset_collate};";
+
+	dbDelta( $device_codes_sql );
 
 	wp_native_auth_backfill_token_family();
 

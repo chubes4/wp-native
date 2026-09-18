@@ -3,6 +3,9 @@
   "tests": {
     "tests/reuse-logic-standalone-smoke.php": {
       "environment": "standalone-php"
+    },
+    "tests/device-user-code-standalone-smoke.php": {
+      "environment": "standalone-php"
     }
   }
 }

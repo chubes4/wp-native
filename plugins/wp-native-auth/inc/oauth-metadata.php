@@ -60,6 +60,10 @@ function wp_native_auth_oauth_endpoint_url( string $endpoint ): string {
  * advertised so clients that carry their own metadata use it before
  * falling back to dynamic registration.
  *
+ * The RFC 8628 device grant is advertised alongside the code grant so a
+ * client on a host with no browser can discover it rather than assuming
+ * a loopback redirect is the only way in.
+ *
  * @return array<string,mixed>
  */
 function wp_native_auth_oauth_server_metadata(): array {
@@ -69,10 +73,11 @@ function wp_native_auth_oauth_server_metadata(): array {
 		'token_endpoint'                                 => wp_native_auth_oauth_endpoint_url( 'token' ),
 		'registration_endpoint'                          => wp_native_auth_oauth_endpoint_url( 'register' ),
 		'revocation_endpoint'                            => wp_native_auth_oauth_endpoint_url( 'revoke' ),
+		'device_authorization_endpoint'                  => wp_native_auth_oauth_endpoint_url( 'device_authorization' ),
 		'scopes_supported'                               => array( WP_NATIVE_AUTH_OAUTH_SCOPE ),
 		'response_types_supported'                       => array( 'code' ),
 		'response_modes_supported'                       => array( 'query' ),
-		'grant_types_supported'                          => array( 'authorization_code', 'refresh_token' ),
+		'grant_types_supported'                          => array( 'authorization_code', 'refresh_token', WP_NATIVE_AUTH_OAUTH_DEVICE_GRANT_TYPE ),
 		'token_endpoint_auth_methods_supported'          => array( 'none' ),
 		'revocation_endpoint_auth_methods_supported'     => array( 'none' ),
 		'code_challenge_methods_supported'               => array( 'S256' ),
