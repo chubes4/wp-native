@@ -98,11 +98,16 @@ class Test_WP_Native_Auth_OAuth_Device extends WP_UnitTestCase {
 	/**
 	 * Issue a device code for the default test client.
 	 *
-	 * @param string $resource Optional resource audience.
+	 * Named `$audience` rather than `$resource`: the production signature
+	 * carries the RFC 8707 spelling and a phpcs:ignore to justify it, but
+	 * a local test helper has no such obligation and should not inherit
+	 * the reserved-keyword warning.
+	 *
+	 * @param string $audience Optional RFC 8707 resource audience.
 	 * @return array{device_code:string, user_code:string, expires_at:int, interval:int}
 	 */
-	private function issue( string $resource = '' ): array {
-		$created = wp_native_auth_oauth_create_device_code( $this->client_id, 'account', $resource );
+	private function issue( string $audience = '' ): array {
+		$created = wp_native_auth_oauth_create_device_code( $this->client_id, 'account', $audience );
 		$this->assertNotWPError( $created );
 
 		return $created;

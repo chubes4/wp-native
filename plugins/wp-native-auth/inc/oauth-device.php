@@ -288,7 +288,26 @@ function wp_native_auth_oauth_render_device_form( array $args ): void {
 		$args
 	);
 
-	wp_native_auth_oauth_render_device_template( 'oauth-device-form.php', 'wp_native_auth_oauth_device_form_template', $args );
+	$default_template = __DIR__ . '/oauth-device-form.php';
+
+	/**
+	 * Filter the device user-code entry template path.
+	 *
+	 * @param string              $template Absolute path to the template file.
+	 * @param array<string,mixed> $args     View args for the template.
+	 */
+	$template = (string) apply_filters( 'wp_native_auth_oauth_device_form_template', $default_template, $args );
+
+	if ( '' === $template || ! is_readable( $template ) ) {
+		$template = $default_template;
+	}
+
+	wp_native_auth_oauth_begin_device_page();
+
+	// phpcs:ignore WordPress.Security.EscapeOutput -- The template escapes its own output.
+	include $template;
+
+	exit;
 }
 
 /**
@@ -298,15 +317,31 @@ function wp_native_auth_oauth_render_device_form( array $args ): void {
  * @return never
  */
 function wp_native_auth_oauth_render_device_result( bool $approved ): void {
-	wp_native_auth_oauth_render_device_template(
-		'oauth-device-result.php',
-		'wp_native_auth_oauth_device_result_template',
-		array( 'approved' => $approved )
-	);
+	$args             = array( 'approved' => $approved );
+	$default_template = __DIR__ . '/oauth-device-result.php';
+
+	/**
+	 * Filter the device result template path.
+	 *
+	 * @param string              $template Absolute path to the template file.
+	 * @param array<string,mixed> $args     View args for the template.
+	 */
+	$template = (string) apply_filters( 'wp_native_auth_oauth_device_result_template', $default_template, $args );
+
+	if ( '' === $template || ! is_readable( $template ) ) {
+		$template = $default_template;
+	}
+
+	wp_native_auth_oauth_begin_device_page();
+
+	// phpcs:ignore WordPress.Security.EscapeOutput -- The template escapes its own output.
+	include $template;
+
+	exit;
 }
 
 /**
- * Render a device-flow template, clearing the inherited 404 state.
+ * Clear the inherited 404 state before rendering a device-flow screen.
  *
  * Same reasoning as wp_native_auth_oauth_render_consent(): this runs on
  * `template_redirect` after WordPress has already resolved the path
@@ -314,12 +349,14 @@ function wp_native_auth_oauth_render_device_result( bool $approved ): void {
  * a 404 status gives it a "Page not found" title and makes HTTP clients
  * that check status before parsing treat it as broken.
  *
- * @param string              $default_file Template filename in inc/.
- * @param string              $filter       Filter name for host overrides.
- * @param array<string,mixed> $args         View args.
- * @return never
+ * Only the status is shared. Each caller resolves and includes its own
+ * template so that every filter name is a literal at its call site —
+ * passing the hook name through a variable would make these filters
+ * invisible to a grep, which is how WordPress hooks are discovered.
+ *
+ * @return void
  */
-function wp_native_auth_oauth_render_device_template( string $default_file, string $filter, array $args ): void {
+function wp_native_auth_oauth_begin_device_page(): void {
 	status_header( 200 );
 	nocache_headers();
 
@@ -327,25 +364,6 @@ function wp_native_auth_oauth_render_device_template( string $default_file, stri
 	if ( $wp_query instanceof WP_Query ) {
 		$wp_query->is_404 = false;
 	}
-
-	$default_template = __DIR__ . '/' . $default_file;
-
-	/**
-	 * Filter a device-flow template path.
-	 *
-	 * @param string              $template Absolute path to the template file.
-	 * @param array<string,mixed> $args     View args for the template.
-	 */
-	$template = (string) apply_filters( $filter, $default_template, $args );
-
-	if ( '' === $template || ! is_readable( $template ) ) {
-		$template = $default_template;
-	}
-
-	// phpcs:ignore WordPress.Security.EscapeOutput -- The template escapes its own output.
-	include $template;
-
-	exit;
 }
 
 /**
