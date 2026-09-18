@@ -64,21 +64,21 @@ function wp_native_auth_oauth_endpoint_url( string $endpoint ): string {
  */
 function wp_native_auth_oauth_server_metadata(): array {
 	$metadata = array(
-		'issuer'                                => wp_native_auth_oauth_issuer(),
-		'authorization_endpoint'                => wp_native_auth_oauth_endpoint_url( 'authorize' ),
-		'token_endpoint'                        => wp_native_auth_oauth_endpoint_url( 'token' ),
-		'registration_endpoint'                 => wp_native_auth_oauth_endpoint_url( 'register' ),
-		'revocation_endpoint'                   => wp_native_auth_oauth_endpoint_url( 'revoke' ),
-		'scopes_supported'                      => array( WP_NATIVE_AUTH_OAUTH_SCOPE ),
-		'response_types_supported'              => array( 'code' ),
-		'response_modes_supported'              => array( 'query' ),
-		'grant_types_supported'                 => array( 'authorization_code', 'refresh_token' ),
-		'token_endpoint_auth_methods_supported' => array( 'none' ),
-		'revocation_endpoint_auth_methods_supported' => array( 'none' ),
-		'code_challenge_methods_supported'      => array( 'S256' ),
+		'issuer'                                         => wp_native_auth_oauth_issuer(),
+		'authorization_endpoint'                         => wp_native_auth_oauth_endpoint_url( 'authorize' ),
+		'token_endpoint'                                 => wp_native_auth_oauth_endpoint_url( 'token' ),
+		'registration_endpoint'                          => wp_native_auth_oauth_endpoint_url( 'register' ),
+		'revocation_endpoint'                            => wp_native_auth_oauth_endpoint_url( 'revoke' ),
+		'scopes_supported'                               => array( WP_NATIVE_AUTH_OAUTH_SCOPE ),
+		'response_types_supported'                       => array( 'code' ),
+		'response_modes_supported'                       => array( 'query' ),
+		'grant_types_supported'                          => array( 'authorization_code', 'refresh_token' ),
+		'token_endpoint_auth_methods_supported'          => array( 'none' ),
+		'revocation_endpoint_auth_methods_supported'     => array( 'none' ),
+		'code_challenge_methods_supported'               => array( 'S256' ),
 		'authorization_response_iss_parameter_supported' => true,
-		'client_id_metadata_document_supported' => true,
-		'protected_resource_metadata'           => wp_native_auth_oauth_protected_resource_url(),
+		'client_id_metadata_document_supported'          => true,
+		'protected_resource_metadata'                    => wp_native_auth_oauth_protected_resource_url(),
 	);
 
 	/**
@@ -96,11 +96,11 @@ function wp_native_auth_oauth_server_metadata(): array {
  */
 function wp_native_auth_oauth_protected_resource_metadata(): array {
 	$metadata = array(
-		'resource'               => wp_native_auth_oauth_issuer(),
-		'authorization_servers'  => array( wp_native_auth_oauth_issuer() ),
-		'scopes_supported'       => array( WP_NATIVE_AUTH_OAUTH_SCOPE ),
+		'resource'                 => wp_native_auth_oauth_issuer(),
+		'authorization_servers'    => array( wp_native_auth_oauth_issuer() ),
+		'scopes_supported'         => array( WP_NATIVE_AUTH_OAUTH_SCOPE ),
 		'bearer_methods_supported' => array( 'header' ),
-		'resource_documentation' => 'https://github.com/chubes4/wp-native/tree/main/plugins/wp-native-auth',
+		'resource_documentation'   => 'https://github.com/chubes4/wp-native/tree/main/plugins/wp-native-auth',
 	);
 
 	/**

@@ -25,6 +25,7 @@ defined( 'ABSPATH' ) || exit;
  * @param string $resource Candidate resource identifier.
  * @return bool
  */
+// phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.resourceFound -- `resource` is the RFC 8707 parameter name; renaming it would diverge from the spec.
 function wp_native_auth_oauth_validate_resource( string $resource ): bool {
 	if ( '' === $resource || strlen( $resource ) > 191 ) {
 		return false;
@@ -83,6 +84,7 @@ function wp_native_auth_oauth_verify_pkce( string $verifier, string $challenge )
 	}
 
 	$digest = hash( 'sha256', $verifier, true );
+	// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- RFC 7636 S256 requires base64url of the SHA-256 digest, not obfuscation.
 	$base64 = rtrim( strtr( base64_encode( $digest ), '+/', '-_' ), '=' );
 
 	return hash_equals( $challenge, $base64 );
@@ -166,6 +168,12 @@ function wp_native_auth_oauth_handle_authorize(): void {
 	// $_GET is a PHP language-level superglobal that is always an array,
 	// and wp_unslash() on an array returns an array — the old
 	// isset()/is_array() guards were dead type-noise, not security guards.
+	// Nonce verification does not apply here: GET /authorize is the RFC 6749
+	// entry point and its parameters come from a third-party OAuth client, not
+	// from a form this site rendered. The request is authenticated by client
+	// resolution plus exact redirect-URI matching below, and the consent POST
+	// that follows does verify a nonce.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- External OAuth client request; see above.
 	$params = wp_unslash( $_GET );
 
 	$client_id    = isset( $params['client_id'] ) ? (string) $params['client_id'] : '';
@@ -266,10 +274,10 @@ function wp_native_auth_oauth_handle_authorize_decision(): void {
 
 	$body = wp_native_auth_oauth_read_body();
 
-	$nonce       = isset( $body['_wpnonce'] ) ? (string) $body['_wpnonce'] : '';
-	$signature   = isset( $body['oauth_signature'] ) ? (string) $body['oauth_signature'] : '';
-	$bundle      = isset( $body['oauth_request'] ) ? wp_native_auth_oauth_decode_bundle( (string) $body['oauth_request'] ) : null;
-	$decision    = isset( $body['oauth_decision'] ) ? (string) $body['oauth_decision'] : '';
+	$nonce     = isset( $body['_wpnonce'] ) ? (string) $body['_wpnonce'] : '';
+	$signature = isset( $body['oauth_signature'] ) ? (string) $body['oauth_signature'] : '';
+	$bundle    = isset( $body['oauth_request'] ) ? wp_native_auth_oauth_decode_bundle( (string) $body['oauth_request'] ) : null;
+	$decision  = isset( $body['oauth_decision'] ) ? (string) $body['oauth_decision'] : '';
 
 	if ( '' === $nonce || ! wp_verify_nonce( $nonce, 'wp_native_auth_oauth_consent' ) ) {
 		wp_native_auth_oauth_send_page_error( __( 'The consent form has expired. Please start the connection again.', 'wp-native-auth' ), 403 );
