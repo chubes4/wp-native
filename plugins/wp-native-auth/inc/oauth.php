@@ -57,6 +57,43 @@ if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_CIMD_CACHE_TTL' ) ) {
 }
 
 /**
+ * Device-code lifetime in seconds (RFC 8628 §3.2 `expires_in`).
+ *
+ * Longer than an authorization code because a human has to read a code
+ * off one screen and type it into another, possibly after walking to a
+ * different room. Short enough that a leaked user code is worthless
+ * within minutes.
+ */
+if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_CODE_TTL' ) ) {
+	define( 'WP_NATIVE_AUTH_OAUTH_DEVICE_CODE_TTL', 10 * MINUTE_IN_SECONDS );
+}
+
+/**
+ * Minimum seconds a client must wait between device-code polls
+ * (RFC 8628 §3.2 `interval`).
+ */
+if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_POLL_INTERVAL' ) ) {
+	define( 'WP_NATIVE_AUTH_OAUTH_DEVICE_POLL_INTERVAL', 5 );
+}
+
+/**
+ * User-code verification attempts allowed per IP per window.
+ *
+ * RFC 8628 §5.2: the user code is short enough to be guessable, so the
+ * verification endpoint needs a brute-force bound. This is the bound.
+ */
+if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_VERIFY_RATE_LIMIT' ) ) {
+	define( 'WP_NATIVE_AUTH_OAUTH_DEVICE_VERIFY_RATE_LIMIT', 20 );
+}
+
+/**
+ * Rate-limit window for user-code verification attempts, in seconds.
+ */
+if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_VERIFY_RATE_WINDOW' ) ) {
+	define( 'WP_NATIVE_AUTH_OAUTH_DEVICE_VERIFY_RATE_WINDOW', 15 * MINUTE_IN_SECONDS );
+}
+
+/**
  * The single OAuth scope this server grants. Declared for metadata
  * purposes only — consent is allow/deny and issued tokens inherit the
  * user's capability set.
@@ -69,7 +106,9 @@ require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-http.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-metadata.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-clients.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-codes.php';
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-device-codes.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-authorize.php';
+require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-device.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-token.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-revoke.php';
 
@@ -91,12 +130,14 @@ function wp_native_auth_oauth_routes(): array {
 	return (array) apply_filters(
 		'wp_native_auth_oauth_routes',
 		array(
-			'protected_resource' => '.well-known/oauth-protected-resource',
-			'server_metadata'    => '.well-known/oauth-authorization-server',
-			'authorize'          => 'authorize',
-			'token'              => 'token',
-			'register'           => 'register',
-			'revoke'             => 'revoke',
+			'protected_resource'   => '.well-known/oauth-protected-resource',
+			'server_metadata'      => '.well-known/oauth-authorization-server',
+			'authorize'            => 'authorize',
+			'token'                => 'token',
+			'register'             => 'register',
+			'revoke'               => 'revoke',
+			'device_authorization' => 'device_authorization',
+			'device_verification'  => 'device',
 		)
 	);
 }
@@ -168,16 +209,36 @@ function wp_native_auth_oauth_maybe_handle_request(): void {
 		}
 		wp_native_auth_oauth_handle_revoke();
 	}
+
+	if ( isset( $routes['device_authorization'] ) && wp_native_auth_oauth_path_matches( $path, (string) $routes['device_authorization'] ) ) {
+		if ( 'POST' !== $method ) {
+			wp_native_auth_oauth_send_method_not_allowed( 'POST' );
+		}
+		wp_native_auth_oauth_handle_device_authorization();
+	}
+
+	if ( isset( $routes['device_verification'] ) && wp_native_auth_oauth_path_matches( $path, (string) $routes['device_verification'] ) ) {
+		if ( 'GET' === $method || 'HEAD' === $method ) {
+			wp_native_auth_oauth_handle_device_verification();
+		}
+		if ( 'POST' === $method ) {
+			wp_native_auth_oauth_handle_device_verification_decision();
+		}
+		wp_native_auth_oauth_send_method_not_allowed( 'GET, POST' );
+	}
 }
 add_action( 'template_redirect', 'wp_native_auth_oauth_maybe_handle_request', 1 );
 
 /**
- * Delete expired authorization codes on the existing hourly cleanup hook.
+ * Delete expired authorization and device codes on the existing hourly
+ * cleanup hook.
  *
  * @return void
  */
 function wp_native_auth_oauth_schedule_cleanup(): void {
 	add_action( WP_NATIVE_AUTH_CONTINUATION_CLEANUP_HOOK, 'wp_native_auth_cleanup_oauth_codes' );
+	add_action( WP_NATIVE_AUTH_CONTINUATION_CLEANUP_HOOK, 'wp_native_auth_cleanup_oauth_device_codes' );
 	add_action( 'deleted_user', 'wp_native_auth_oauth_delete_user_codes' );
+	add_action( 'deleted_user', 'wp_native_auth_oauth_delete_user_device_codes' );
 }
 add_action( 'init', 'wp_native_auth_oauth_schedule_cleanup', 2 );

@@ -1,9 +1,13 @@
 <?php
 /**
  * The /token endpoint: authorization-code redemption with mandatory PKCE
- * verification, and refresh-token rotation through the existing
- * refresh-token lifecycle (rotation, reuse detection, and family
- * revocation are the ones this plugin already ships).
+ * verification, device-code polling (RFC 8628), and refresh-token rotation
+ * through the existing refresh-token lifecycle (rotation, reuse detection,
+ * and family revocation are the ones this plugin already ships).
+ *
+ * All three grants converge on wp_native_auth_oauth_build_grant(), so
+ * however a client authorized, it lands on the same session row with the
+ * same rotation semantics.
  *
  * @package WPNativeAuth
  */
@@ -36,7 +40,11 @@ function wp_native_auth_oauth_handle_token(): void {
 		wp_native_auth_oauth_token_from_refresh_token( $body );
 	}
 
-	wp_native_auth_oauth_send_error( 'unsupported_grant_type', __( 'Only authorization_code and refresh_token grants are supported.', 'wp-native-auth' ), 400 );
+	if ( WP_NATIVE_AUTH_OAUTH_DEVICE_GRANT_TYPE === $grant_type ) {
+		wp_native_auth_oauth_token_from_device_code( $body );
+	}
+
+	wp_native_auth_oauth_send_error( 'unsupported_grant_type', __( 'Only authorization_code, refresh_token, and device_code grants are supported.', 'wp-native-auth' ), 400 );
 }
 
 /**
