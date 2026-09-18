@@ -285,20 +285,66 @@ function wp_native_auth_oauth_register_client( array $body, string $ip ): array|
 		);
 	}
 
-	$grant_types = $body['grant_types'] ?? array( 'authorization_code', 'refresh_token' );
-	if ( ! is_array( $grant_types ) || array( 'authorization_code', 'refresh_token' ) !== array_values( $grant_types ) ) {
+	/*
+	 * Accept any non-empty subset of the grants this server supports.
+	 *
+	 * This previously demanded exactly [authorization_code, refresh_token],
+	 * in that order, which rejected every RFC 8628 client: a device client
+	 * announces the device grant, so the server advertised a grant in
+	 * discovery that registration then refused. Order is not significant in
+	 * RFC 7591, and a client is not obliged to want every grant.
+	 *
+	 * What is still refused is a grant this server does not implement —
+	 * notably implicit and password, which it will never support.
+	 */
+	$supported_grant_types = wp_native_auth_oauth_supported_grant_types();
+	$grant_types           = $body['grant_types'] ?? array( 'authorization_code', 'refresh_token' );
+
+	if ( ! is_array( $grant_types ) || array() === $grant_types ) {
 		return new WP_Error(
 			'invalid_client_metadata',
-			__( 'Unsupported grant_types.', 'wp-native-auth' ),
+			__( 'grant_types must be a non-empty array.', 'wp-native-auth' ),
 			array( 'status' => 400 )
 		);
 	}
 
-	$response_types = $body['response_types'] ?? array( 'code' );
-	if ( ! is_array( $response_types ) || array( 'code' ) !== array_values( $response_types ) ) {
+	$unsupported_grants = array_diff( array_map( 'strval', array_values( $grant_types ) ), $supported_grant_types );
+	if ( array() !== $unsupported_grants ) {
 		return new WP_Error(
 			'invalid_client_metadata',
-			__( 'Unsupported response_types.', 'wp-native-auth' ),
+			sprintf(
+				/* translators: 1: requested grant types, 2: supported grant types. */
+				__( 'Unsupported grant_types: %1$s. This server supports: %2$s.', 'wp-native-auth' ),
+				implode( ', ', $unsupported_grants ),
+				implode( ', ', $supported_grant_types )
+			),
+			array( 'status' => 400 )
+		);
+	}
+
+	/*
+	 * A device-only client has no authorization response, so RFC 7591 lets
+	 * it register an empty response_types. Requiring ['code'] rejected those
+	 * clients for declaring the truth about themselves.
+	 */
+	$response_types = $body['response_types'] ?? array( 'code' );
+	if ( ! is_array( $response_types ) ) {
+		return new WP_Error(
+			'invalid_client_metadata',
+			__( 'response_types must be an array.', 'wp-native-auth' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	$unsupported_response_types = array_diff( array_map( 'strval', array_values( $response_types ) ), array( 'code' ) );
+	if ( array() !== $unsupported_response_types ) {
+		return new WP_Error(
+			'invalid_client_metadata',
+			sprintf(
+				/* translators: %s: requested response types. */
+				__( 'Unsupported response_types: %s. This server supports: code.', 'wp-native-auth' ),
+				implode( ', ', $unsupported_response_types )
+			),
 			array( 'status' => 400 )
 		);
 	}
@@ -352,7 +398,14 @@ function wp_native_auth_oauth_register_client( array $body, string $ip ): array|
 		'client_id_issued_at'        => time(),
 		'redirect_uris'              => $validated_uris,
 		'token_endpoint_auth_method' => 'none',
-		'grant_types'                => array( 'authorization_code', 'refresh_token' ),
+		/*
+		 * RFC 7591 §3.2.1: the response reports the metadata as registered,
+		 * which the server may widen. No per-client grant restriction is
+		 * stored or enforced here, so every registered client may use every
+		 * supported grant — reporting the full set is the accurate answer,
+		 * and it tells a device client that refresh is available to it too.
+		 */
+		'grant_types'                => wp_native_auth_oauth_supported_grant_types(),
 		'response_types'             => array( 'code' ),
 		'scope'                      => WP_NATIVE_AUTH_OAUTH_SCOPE,
 	);
