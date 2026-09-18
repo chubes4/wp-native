@@ -2,6 +2,11 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.4.1] - 2026-09-18
+
+### Fixed
+- accept every advertised grant at client registration
+
 ## [0.4.0] - 2026-09-18
 
 ### Added
