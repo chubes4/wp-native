@@ -239,6 +239,46 @@ class Test_WP_Native_Auth_OAuth_Router extends WP_UnitTestCase {
 	}
 
 	// ------------------------------------------------------------------
+	// The consent screen is a real page, not a missing one.
+	// ------------------------------------------------------------------
+
+	/**
+	 * Rendering consent must clear the 404 the main query already set.
+	 *
+	 * The router only claims a request WordPress resolved to nothing, so
+	 * is_404 is true on entry. Leaving it set serves a valid consent
+	 * prompt as "Page not found" under a 404 status.
+	 */
+	public function test_render_consent_clears_the_404_state(): void {
+		global $wp_query;
+
+		$this->set_404( true );
+
+		$observed = null;
+		add_filter(
+			'wp_native_auth_oauth_consent_template',
+			static function ( $template ) use ( &$observed ) {
+				global $wp_query;
+				$observed = $wp_query->is_404;
+
+				throw new WP_Native_Auth_Router_Response();
+			}
+		);
+
+		try {
+			wp_native_auth_oauth_render_consent( array( 'client_name' => 'Test Client' ) );
+		} catch ( WP_Native_Auth_Router_Response $e ) {
+			// The template seam is where we observe; rendering stops here.
+		}
+
+		$this->assertFalse(
+			$observed,
+			'The consent screen rendered while the query was still flagged as a 404.'
+		);
+		$this->assertFalse( $wp_query->is_404 );
+	}
+
+	// ------------------------------------------------------------------
 	// POST /authorize — the consent decision, end to end.
 	// ------------------------------------------------------------------
 
