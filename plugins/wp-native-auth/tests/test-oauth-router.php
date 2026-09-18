@@ -257,7 +257,7 @@ class Test_WP_Native_Auth_OAuth_Router extends WP_UnitTestCase {
 		$observed = null;
 		add_filter(
 			'wp_native_auth_oauth_consent_template',
-			static function ( $template ) use ( &$observed ) {
+			static function () use ( &$observed ) {
 				global $wp_query;
 				$observed = $wp_query->is_404;
 
