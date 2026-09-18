@@ -107,8 +107,8 @@ class Test_WP_Native_Auth_OAuth_Client_Registration extends WP_UnitTestCase {
 	 */
 	public function unsupported_grants(): array {
 		return array(
-			'implicit'          => array( 'implicit' ),
-			'password'          => array( 'password' ),
+			'implicit'           => array( 'implicit' ),
+			'password'           => array( 'password' ),
 			'client credentials' => array( 'client_credentials' ),
 		);
 	}
