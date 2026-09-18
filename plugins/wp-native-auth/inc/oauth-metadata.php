@@ -77,7 +77,7 @@ function wp_native_auth_oauth_server_metadata(): array {
 		'scopes_supported'                               => array( WP_NATIVE_AUTH_OAUTH_SCOPE ),
 		'response_types_supported'                       => array( 'code' ),
 		'response_modes_supported'                       => array( 'query' ),
-		'grant_types_supported'                          => array( 'authorization_code', 'refresh_token', WP_NATIVE_AUTH_OAUTH_DEVICE_GRANT_TYPE ),
+		'grant_types_supported'                          => wp_native_auth_oauth_supported_grant_types(),
 		'token_endpoint_auth_methods_supported'          => array( 'none' ),
 		'revocation_endpoint_auth_methods_supported'     => array( 'none' ),
 		'code_challenge_methods_supported'               => array( 'S256' ),

@@ -122,6 +122,28 @@ if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_SCOPE' ) ) {
 	define( 'WP_NATIVE_AUTH_OAUTH_SCOPE', 'account' );
 }
 
+/**
+ * Every grant type this server supports.
+ *
+ * Discovery and dynamic client registration must agree on this list. They
+ * previously hardcoded it separately, and adding the device grant to
+ * discovery alone meant the server advertised a grant that registration
+ * then rejected — a client could see it and could not register to use it.
+ * One source of truth so that cannot diverge again.
+ *
+ * Read at call time rather than as a constant because the device grant
+ * identifier is declared in inc/oauth-device.php, which loads later.
+ *
+ * @return list<string> Supported grant type identifiers.
+ */
+function wp_native_auth_oauth_supported_grant_types(): array {
+	return array(
+		'authorization_code',
+		'refresh_token',
+		WP_NATIVE_AUTH_OAUTH_DEVICE_GRANT_TYPE,
+	);
+}
+
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-http.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-metadata.php';
 require_once WP_NATIVE_AUTH_PLUGIN_DIR . 'inc/oauth-clients.php';
