@@ -2,6 +2,12 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.3.1] - 2026-09-18
+
+### Fixed
+- assert the consent template was reached instead of swallowing the signal
+- serve the OAuth consent screen as 200, not 404
+
 ## [0.3.0] - 2026-09-18
 
 ### Added
