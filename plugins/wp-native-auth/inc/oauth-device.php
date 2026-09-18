@@ -54,6 +54,17 @@ function wp_native_auth_oauth_handle_device_authorization(): void {
 	$body   = wp_native_auth_oauth_read_body();
 	$client = wp_native_auth_oauth_authenticate_public_client( $body );
 
+	// Bound issuance before anything is inserted. Checked after client
+	// authentication so an unidentified caller cannot consume the budget
+	// belonging to a legitimate one from behind the same egress.
+	if ( wp_native_auth_oauth_device_authorization_rate_limited( wp_native_auth_oauth_client_ip() ) ) {
+		wp_native_auth_oauth_send_error(
+			'slow_down',
+			__( 'Too many device authorization requests. Try again later.', 'wp-native-auth' ),
+			429
+		);
+	}
+
 	$scope = isset( $body['scope'] ) ? trim( (string) $body['scope'] ) : WP_NATIVE_AUTH_OAUTH_SCOPE;
 	if ( '' === $scope ) {
 		$scope = WP_NATIVE_AUTH_OAUTH_SCOPE;

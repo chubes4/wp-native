@@ -341,4 +341,62 @@ class Test_WP_Native_Auth_OAuth_Device extends WP_UnitTestCase {
 			'a device grant must reuse the stable per-(user, client) session row'
 		);
 	}
+
+	/**
+	 * Issuance is bounded per IP.
+	 *
+	 * The endpoint is unauthenticated and inserts a row per request, so
+	 * without this bound a single caller can grow the table faster than the
+	 * capped cleanup batches reclaim it.
+	 *
+	 * Uses an IP unique to this test for the same reason set_up() varies the
+	 * registration IP: the counter is a transient and does not roll back
+	 * with the test transaction.
+	 */
+	public function test_device_authorization_is_rate_limited_per_ip(): void {
+		$limit = 3;
+		add_filter(
+			'wp_native_auth_oauth_device_authorization_rate_limit',
+			static function () use ( $limit ) {
+				return $limit;
+			}
+		);
+
+		$ip = '198.51.100.' . ( 10 + self::$registration_seq );
+
+		for ( $i = 1; $i <= $limit; $i++ ) {
+			$this->assertFalse(
+				wp_native_auth_oauth_device_authorization_rate_limited( $ip ),
+				"request {$i} is within the limit and must be allowed"
+			);
+		}
+
+		$this->assertTrue(
+			wp_native_auth_oauth_device_authorization_rate_limited( $ip ),
+			'the request after the limit must be refused'
+		);
+	}
+
+	/**
+	 * One caller exhausting the limit must not lock out everyone else.
+	 */
+	public function test_device_authorization_limit_is_not_shared_across_ips(): void {
+		add_filter(
+			'wp_native_auth_oauth_device_authorization_rate_limit',
+			static function () {
+				return 1;
+			}
+		);
+
+		$exhausted = '198.51.100.' . ( 60 + self::$registration_seq );
+		$innocent  = '203.0.113.' . ( 60 + self::$registration_seq );
+
+		$this->assertFalse( wp_native_auth_oauth_device_authorization_rate_limited( $exhausted ) );
+		$this->assertTrue( wp_native_auth_oauth_device_authorization_rate_limited( $exhausted ) );
+
+		$this->assertFalse(
+			wp_native_auth_oauth_device_authorization_rate_limited( $innocent ),
+			'a separate IP must keep its own budget'
+		);
+	}
 }

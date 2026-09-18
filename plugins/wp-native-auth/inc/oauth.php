@@ -94,6 +94,26 @@ if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_VERIFY_RATE_WINDOW' ) ) {
 }
 
 /**
+ * Device authorization requests allowed per IP per window.
+ *
+ * Issuance is unauthenticated by design — a device client has no secret to
+ * present before a user has approved anything — and every request inserts a
+ * row. Expiry plus cleanup bound the table over time, but cleanup runs in
+ * capped batches, so a caller sustaining more issuance than a batch can
+ * reclaim still grows it. This is the bound on that.
+ */
+if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_AUTHORIZATION_RATE_LIMIT' ) ) {
+	define( 'WP_NATIVE_AUTH_OAUTH_DEVICE_AUTHORIZATION_RATE_LIMIT', 30 );
+}
+
+/**
+ * Rate-limit window for device authorization requests, in seconds.
+ */
+if ( ! defined( 'WP_NATIVE_AUTH_OAUTH_DEVICE_AUTHORIZATION_RATE_WINDOW' ) ) {
+	define( 'WP_NATIVE_AUTH_OAUTH_DEVICE_AUTHORIZATION_RATE_WINDOW', HOUR_IN_SECONDS );
+}
+
+/**
  * The single OAuth scope this server grants. Declared for metadata
  * purposes only — consent is allow/deny and issued tokens inherit the
  * user's capability set.

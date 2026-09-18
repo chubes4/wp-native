@@ -367,6 +367,41 @@ function wp_native_auth_oauth_device_poll_too_fast( array $row, int $now_ts ): b
 }
 
 /**
+ * Whether this IP may request another device authorization.
+ *
+ * Issuance is unauthenticated and inserts a row per request, so without a
+ * bound a single caller can grow the table faster than the capped cleanup
+ * batches reclaim it. Per-IP fixed window, the same shape as the
+ * registration and verification limiters.
+ *
+ * Keyed on IP rather than client_id on purpose: dynamic registration is
+ * open, so a caller that wanted to evade a per-client bound could simply
+ * register another client.
+ *
+ * @param string $ip Client IP.
+ * @return bool True when the request should be refused.
+ */
+function wp_native_auth_oauth_device_authorization_rate_limited( string $ip ): bool {
+	$key   = 'wp_native_auth_oauth_devauth_' . hash( 'sha256', $ip );
+	$count = (int) get_transient( $key );
+
+	/**
+	 * Filter the per-IP device authorization request limit.
+	 *
+	 * @param int $limit Requests allowed per window.
+	 */
+	$limit = (int) apply_filters( 'wp_native_auth_oauth_device_authorization_rate_limit', WP_NATIVE_AUTH_OAUTH_DEVICE_AUTHORIZATION_RATE_LIMIT );
+
+	if ( $count >= $limit ) {
+		return true;
+	}
+
+	set_transient( $key, $count + 1, WP_NATIVE_AUTH_OAUTH_DEVICE_AUTHORIZATION_RATE_WINDOW );
+
+	return false;
+}
+
+/**
  * Whether this IP may attempt another user-code verification.
  *
  * RFC 8628 §5.2: the user code is short enough to brute-force, so the
