@@ -79,10 +79,33 @@ class Test_WP_Native_Auth_OAuth_Metadata extends WP_UnitTestCase {
 		$this->assertTrue( $this->as['authorization_response_iss_parameter_supported'] );
 	}
 
-	public function test_code_flow_only(): void {
+	/**
+	 * Only the code grant and the device grant are advertised.
+	 *
+	 * The device grant adds a second way in, but it does not relax what this
+	 * assertion has always really been guarding: no implicit grant, no
+	 * resource-owner password grant, no token response type. Those are now
+	 * asserted directly, so a future grant cannot quietly reintroduce one of
+	 * them by only extending the expected list.
+	 */
+	public function test_only_code_and_device_grants_are_advertised(): void {
 		$this->assertSame( array( 'code' ), $this->as['response_types_supported'] );
-		$this->assertSame( array( 'authorization_code', 'refresh_token' ), $this->as['grant_types_supported'] );
-		$this->assertContains( 'authorization_code', $this->as['grant_types_supported'] );
+		$this->assertSame(
+			array( 'authorization_code', 'refresh_token', WP_NATIVE_AUTH_OAUTH_DEVICE_GRANT_TYPE ),
+			$this->as['grant_types_supported']
+		);
+
+		$this->assertNotContains( 'implicit', $this->as['grant_types_supported'] );
+		$this->assertNotContains( 'password', $this->as['grant_types_supported'] );
+		$this->assertNotContains( 'token', $this->as['response_types_supported'] );
+	}
+
+	/**
+	 * A client cannot discover the device grant without its endpoint.
+	 */
+	public function test_device_authorization_endpoint_is_advertised(): void {
+		$this->assertArrayHasKey( 'device_authorization_endpoint', $this->as );
+		$this->assertNotEmpty( $this->as['device_authorization_endpoint'] );
 	}
 
 	public function test_single_scope_declared(): void {
