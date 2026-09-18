@@ -2,6 +2,11 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.4.0] - 2026-09-18
+
+### Added
+- add RFC 8628 device authorization grant
+
 ## [0.3.1] - 2026-09-18
 
 ### Fixed
