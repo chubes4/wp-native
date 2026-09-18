@@ -350,6 +350,25 @@ function wp_native_auth_oauth_handle_authorize_decision(): void {
  * @return never
  */
 function wp_native_auth_oauth_render_consent( array $args ): void {
+	/*
+	 * The consent screen is a real page, not a missing one.
+	 *
+	 * This runs on `template_redirect`, by which point WordPress has already
+	 * resolved the authorization endpoint against the posts table, found
+	 * nothing, and flagged the request as a 404. Rendering the template
+	 * without clearing that state serves the consent UI under a 404 status
+	 * with a "Page not found" document title: browsers display it, but the
+	 * title is wrong and HTTP clients that check the status before parsing
+	 * treat a valid consent prompt as a broken endpoint.
+	 */
+	status_header( 200 );
+	nocache_headers();
+
+	global $wp_query;
+	if ( $wp_query instanceof WP_Query ) {
+		$wp_query->is_404 = false;
+	}
+
 	$default_template = __DIR__ . '/oauth-consent-form.php';
 
 	/**
