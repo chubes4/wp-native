@@ -265,11 +265,16 @@ class Test_WP_Native_Auth_OAuth_Router extends WP_UnitTestCase {
 			}
 		);
 
+		$reached_template = false;
+
 		try {
 			wp_native_auth_oauth_render_consent( array( 'client_name' => 'Test Client' ) );
 		} catch ( WP_Native_Auth_Router_Response $e ) {
-			// The template seam is where we observe; rendering stops here.
+			// The template seam is where we observe; rendering stops there.
+			$reached_template = true;
 		}
+
+		$this->assertTrue( $reached_template, 'Rendering never reached the consent template.' );
 
 		$this->assertFalse(
 			$observed,
