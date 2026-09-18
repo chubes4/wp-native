@@ -2,6 +2,17 @@
 
 <!-- Managed by homeboy. Do not hand-edit. -->
 
+## [0.3.0] - 2026-09-18
+
+### Added
+- surface OAuth client binding on auth-sessions
+- add generic OAuth 2.1 authorization server
+
+### Changed
+- clear lint advisories in the OAuth server files
+- wire managed test gates for wp-native-auth, shell, and api-client
+- Refresh docs for current architecture and adoption
+
 ## [0.2.0] - 2026-07-24
 
 ### Fixed
